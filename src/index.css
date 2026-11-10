@@ -584,3 +584,24 @@ details.diag textarea {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+.stake-card .k {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 650;
+}
+.stake-card .v {
+  font-size: 28px;
+  font-weight: 750;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.stake-card .f {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.sheet .breakdown {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 2px 0 10px;
+}

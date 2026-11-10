@@ -179,16 +179,19 @@ export function useSpare() {
   // ---- balance + staker (connected only; read-only, no dialog) ----
   const accounts = mode.kind === 'connected' ? mode.accounts : null
   const loadInfo = useCallback(async () => {
-    if (!accounts) return
+    if (!wallet) return
     setInfoError(false)
     try {
-      const [balances, staker] = await Promise.all([getBalances(accounts), rpc.getStakerByAddress(accounts.walletAddress).then(toStakerInfo)])
+      const [balances, staker] = await Promise.all([
+        accounts ? getBalances(accounts) : Promise.resolve({ wallet: null, htlc: null, supported: false }),
+        rpc.getStakerByAddress(wallet).then(toStakerInfo),
+      ])
       setInfo({ balances, staker })
     } catch (e) {
       setInfoError(true)
       updateDiag((d) => d.errors.push({ at: Date.now(), message: `balance/staker: ${String(e)}` }))
     }
-  }, [accounts?.walletAddress, accounts?.htlcAddress, rpc])
+  }, [wallet, accounts?.walletAddress, accounts?.htlcAddress, rpc])
   useEffect(() => {
     void loadInfo()
   }, [loadInfo])
@@ -243,7 +246,7 @@ export function useSpare() {
     [trace, table, settings.maxStep, settings.multiplier, status.excluded, marks, locked],
   )
   const quote = useMemo(() => (items && table ? getSweepQuote(fiat, items, table.current) : null), [items, table])
-  const spendable = info ? spendableLuna(info.balances) : null
+  const spendable = info && accounts ? spendableLuna(info.balances) : null
   const partial = quote && spendable !== null && table?.current && quote.luna > spendable ? pickAffordable(quote.items, spendable, table.current.price) : null
   const plan = quote ? (partial ?? { items: quote.items, luna: quote.luna, fiat: quote.fiatTotal }) : null
   const route = plan ? planRoute(plan.luna, info?.staker ?? null) : null
@@ -252,6 +255,10 @@ export function useSpare() {
   const canAffordMinimum = minimum ? spendable !== null && spendable >= minimum.startLuna : false
   const saved = savedWithSpare(sweeps)
   const earned = earnedOnTop(info?.staker ?? null, sweeps)
+  // Read from the chain, so it is right on any device (unlike the local sweep history).
+  const stakeLuna = info?.staker ? info.staker.active + info.staker.inactive + info.staker.retired : info ? 0 : null
+  const stakeFiat = stakeLuna !== null && table?.current ? (stakeLuna / 1e5) * table.current.price : null
+  const hasLocalHistory = sweeps.some((r) => r.status === 'confirmed')
   const streak = weekStreak(sweeps, Date.now())
   const fresh = trace ? newSinceLastSweep(trace.spends, sweeps) : null
   const gate = canStartSweep(sweeps)
@@ -292,12 +299,15 @@ export function useSpare() {
     if (r.kind !== 'new' && r.kind !== 'add') return
     const delegation = r.kind === 'new' ? settings.pool : null
     if (r.kind === 'new' && !delegation) return
+    // A starter sweep tops the round-ups up to 100 NIM; the extra is recorded apart, never as savings.
+    const topUpLuna = kind === 'min' && quote ? Math.max(0, luna - quote.luna) : 0
     setSweepUi({ phase: 'approval' })
     const out = await executeSweep(d, {
       route: r.kind,
       delegation,
       luna,
-      fiat: Math.round((luna / 1e5) * table.current.price * 1e8) / 1e8,
+      topUpLuna,
+      fiat: kind === 'min' && quote ? quote.fiatTotal : plan.fiat,
       fiatCode: fiat,
       price: table.current.price,
       priceTime: table.current.time,
@@ -343,6 +353,9 @@ export function useSpare() {
     spendable,
     saved,
     earned,
+    stakeLuna,
+    stakeFiat,
+    hasLocalHistory,
     streak,
     fresh,
     gate,

@@ -65,6 +65,7 @@ export function Activity({ s }: { s: Spare }) {
                   <div className="meta">
                     {fmtDateTime(r.createdAt, lang)} · {t(`sweepStatus.${r.status}` as StringKey)}
                   </div>
+                  {!!r.topUpLuna && <div className="meta">{t('sweep.topUp', { nim: fmtNim(r.topUpLuna, lang) })}</div>}
                 </div>
                 {r.txHash && (
                   <a className="btn small secondary" href={explorerTx(s.network, r.txHash)} target="_blank" rel="noreferrer">

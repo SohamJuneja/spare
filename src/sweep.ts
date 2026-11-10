@@ -99,6 +99,8 @@ export interface SweepRecord {
   itemHashes: string[]
   /** Staker total (active+inactive+retired) right before this sweep was sent. */
   stakeBefore: number
+  /** Part of `luna` that is not round-ups: the starter top-up to reach the 100 NIM minimum. */
+  topUpLuna?: number
   txHash: string | null
   confirmedAt?: number
   error?: string
@@ -148,15 +150,18 @@ export function findSweepTx(rows: TxRow[], record: SweepRecord, own: Set<string>
   )
 }
 
-export function savedWithSpare(history: SweepRecord[]): { luna: number; fiatByCode: Partial<Record<FiatCode, number>> } {
+/** Round-ups saved in confirmed sweeps. Starter top-ups are real stake but not savings, so they are reported apart. */
+export function savedWithSpare(history: SweepRecord[]): { luna: number; topUpLuna: number; fiatByCode: Partial<Record<FiatCode, number>> } {
   let luna = 0
+  let topUpLuna = 0
   const fiatByCode: Partial<Record<FiatCode, number>> = {}
   for (const r of history) {
     if (r.status !== 'confirmed') continue
-    luna += r.luna
+    luna += r.luna - (r.topUpLuna ?? 0)
+    topUpLuna += r.topUpLuna ?? 0
     fiatByCode[r.fiatCode] = (fiatByCode[r.fiatCode] ?? 0) + r.fiat
   }
-  return { luna, fiatByCode }
+  return { luna, topUpLuna, fiatByCode }
 }
 
 /**
@@ -258,6 +263,7 @@ export interface SweepRequest {
   priceTime: number | null
   itemHashes: string[]
   stakeBefore: number
+  topUpLuna?: number
 }
 
 export type SweepOutcome = { kind: 'rejected' } | { kind: 'blocked'; reason: string } | { kind: 'record'; record: SweepRecord }

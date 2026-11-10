@@ -58,22 +58,41 @@ export function Home({ s, onHow }: { s: Spare; onHow: () => void }) {
 
       {s.minimum && s.quote && s.quote.luna > 0 && <MinimumCard s={s} />}
 
-      <div className="stats">
-        <div className="stat">
-          <div className="k">{t('home.saved')}</div>
-          <div className="v">{fmtNim(s.saved.luna, lang)} NIM</div>
-          {s.saved.fiatByCode[fiat] !== undefined && <div className="f">{fmtFiat(s.saved.fiatByCode[fiat]!, fiat, lang)}</div>}
+      {/* Primary stat comes from the chain, so it is right on any device. */}
+      <section className="card stake-card">
+        <div className="k">{sample ? t('home.sampleStake') : t('home.yourStake')}</div>
+        {s.stakeLuna === null ? (
+          <div className="skeleton" style={{ height: 30, width: '50%', marginTop: 6 }} />
+        ) : s.stakeLuna === 0 ? (
+          <div className="v">{t('home.noStake')}</div>
+        ) : (
+          <>
+            <div className="v">{s.stakeFiat !== null ? fmtFiat(s.stakeFiat, fiat, lang) : `${fmtNim(s.stakeLuna, lang)} NIM`}</div>
+            {s.stakeFiat !== null && <div className="f">{fmtNim(s.stakeLuna, lang)} NIM</div>}
+          </>
+        )}
+      </section>
+
+      {/* Local sweep history: only on this device, so labelled that way and hidden while empty. */}
+      {s.hasLocalHistory && (
+        <div className="stats">
+          <div className="stat">
+            <div className="k">{t('home.saved')}</div>
+            <div className="v">{fmtNim(s.saved.luna, lang)} NIM</div>
+            <div className="f">{t('home.thisDevice')}</div>
+          </div>
+          <div className="stat">
+            <div className="k">{t('home.earned')}</div>
+            <div className="v">{fmtNim(s.earned.luna, lang)} NIM</div>
+            {s.earned.approximate && <div className="f">{t('home.approx')}</div>}
+          </div>
+          <div className="stat">
+            <div className="k">{t('home.streak')}</div>
+            <div className="v">{tn('home.streakValue', s.streak)}</div>
+            <div className="f">{t('home.thisDevice')}</div>
+          </div>
         </div>
-        <div className="stat">
-          <div className="k">{t('home.earned')}</div>
-          <div className="v">{fmtNim(s.earned.luna, lang)} NIM</div>
-          {s.earned.approximate && <div className="f">{t('home.approx')}</div>}
-        </div>
-        <div className="stat">
-          <div className="k">{t('home.streak')}</div>
-          <div className="v">{tn('home.streakValue', s.streak)}</div>
-        </div>
-      </div>
+      )}
 
       {!sample && s.fresh && s.trace && s.trace.spends.length > 0 && (
         <div className="notice">

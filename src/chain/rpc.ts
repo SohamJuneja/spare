@@ -250,7 +250,26 @@ export function createRpcClient(network: Network, opts: RpcClientOptions = {}) {
     }
   }
 
-  return { url, stats, getTransactionsByAddress, getTransactionsSince, getAccountByAddress, getStakerByAddress, getTransactionByHash }
+  function getBlockNumber(): Promise<number> {
+    return call<number>('getBlockNumber', [])
+  }
+
+  /** Block with its transactions (micro blocks hold ~1 tx/s on mainnet). */
+  function getBlockByNumber(blockNumber: number): Promise<{ number: number; timestamp: number; transactions?: RpcTransaction[] }> {
+    return call('getBlockByNumber', [blockNumber, true])
+  }
+
+  return {
+    url,
+    stats,
+    getTransactionsByAddress,
+    getTransactionsSince,
+    getAccountByAddress,
+    getStakerByAddress,
+    getTransactionByHash,
+    getBlockNumber,
+    getBlockByNumber,
+  }
 }
 
 export type RpcClient = ReturnType<typeof createRpcClient>
