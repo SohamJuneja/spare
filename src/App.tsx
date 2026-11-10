@@ -5,9 +5,29 @@ import { createStore, loadSpendStatus, saveSpendStatus, type SpendStatusData } f
 import { createRpcClient } from './chain/rpc'
 import { cachedTrace, traceWallet, type WalletTrace } from './chain/spending'
 import { diag, diagnosticsText, onDiagnostics, rawNimiqPay, updateDiag, vaultReason } from './diagnostics'
-import { connect, getHost, onAccountsChanged, type ConnectedAccounts } from './nimiq/host'
+import { connect, getBalances, getHost, getProvider, onAccountsChanged, type ConnectedAccounts } from './nimiq/host'
 import { dayKey, getPriceTable, type FiatCode, type PriceTable } from './prices'
-import { buildRoundUps, DEFAULT_STEP, getSweepQuote, STEPS, type Multiplier } from './roundup'
+import { buildRoundUps, DEFAULT_STEP, getSweepQuote, STEPS, type Multiplier, type RoundUpItem, type SweepQuote } from './roundup'
+import {
+  canStartSweep,
+  earnedOnTop,
+  executeSweep,
+  fetchValidators,
+  loadSweeps,
+  lockedItemHashes,
+  pickAffordable,
+  pickDefaultValidator,
+  planRoute,
+  savedWithSpare,
+  settleSweep,
+  spendableLuna,
+  sweptMarks,
+  toStakerInfo,
+  type StakerInfo,
+  type SweepDeps,
+  type SweepRecord,
+  type ValidatorRow,
+} from './sweep'
 
 const host = getHost()
 const store = createStore()
@@ -132,7 +152,7 @@ export default function App() {
       {trace && (
         <section>
           <h2>Round-ups</h2>
-          <RoundUps trace={trace} />
+          <RoundUps trace={trace} accounts={accounts && accounts.walletAddress === trace.wallet ? accounts : null} />
         </section>
       )}
 
@@ -179,13 +199,15 @@ function SpendingView({ trace }: { trace: WalletTrace }) {
   )
 }
 
-function RoundUps({ trace }: { trace: WalletTrace }) {
+function RoundUps({ trace, accounts }: { trace: WalletTrace; accounts: ConnectedAccounts | null }) {
   const [fiat, setFiat] = useState<FiatCode>(hostFiat)
   const [step, setStep] = useState(DEFAULT_STEP[hostFiat])
   const [multiplier, setMultiplier] = useState<Multiplier>(1)
   const [table, setTable] = useState<PriceTable | null>(null)
   const [priceError, setPriceError] = useState<string | null>(null)
   const [status, setStatus] = useState<SpendStatusData>(() => loadSpendStatus(store, host.network, trace.wallet))
+  const [sweeps, setSweeps] = useState<SweepRecord[]>(() => loadSweeps(store, host.network, trace.wallet))
+  useEffect(() => setSweeps(loadSweeps(store, host.network, trace.wallet)), [trace.wallet])
 
   const dayList = useMemo(() => [...new Set(trace.spends.map((s) => dayKey(s.timestamp)))].join(','), [trace.spends])
   useEffect(() => {
@@ -220,8 +242,12 @@ function RoundUps({ trace }: { trace: WalletTrace }) {
   if (priceError && !table) return <p className="error">Could not load prices: {priceError}</p>
   if (!table || table.fiat !== fiat) return <p>Loading prices…</p>
 
-  const items = buildRoundUps(trace.spends, table, { step, multiplier }, status)
+  const marks = sweptMarks(sweeps)
+  const locked = lockedItemHashes(sweeps)
+  // Items in an unsettled sweep are kept out of the quote (never double-sweep) but are not "swept" yet.
+  const items = buildRoundUps(trace.spends, table, { maxStep: step, multiplier }, { excluded: status.excluded, swept: [...marks.keys(), ...locked] })
   const quote = getSweepQuote(fiat, items, table.current)
+  const statusLabel = (i: RoundUpItem) => (i.status === 'swept' && !marks.has(i.hash) ? 'sweeping…' : i.status)
 
   return (
     <>
@@ -242,7 +268,7 @@ function RoundUps({ trace }: { trace: WalletTrace }) {
           </select>
         </label>
         <label>
-          Round to
+          Max step
           <select value={step} onChange={(e) => setStep(Number(e.target.value))}>
             {STEPS[fiat].map((s) => (
               <option key={s} value={s}>
@@ -288,9 +314,9 @@ function RoundUps({ trace }: { trace: WalletTrace }) {
                 </td>
                 <td>{money(i.roundUp, fiat)}</td>
                 <td>{money(i.saved, fiat)}</td>
-                <td>{i.status}</td>
+                <td title={marks.get(i.hash)?.sweepHash}>{statusLabel(i)}</td>
                 <td>
-                  {i.status !== 'swept' && (
+                  {i.status !== 'swept' && !locked.has(i.hash) && (
                     <button className="small" onClick={() => toggleExcluded(i.hash)}>
                       {i.status === 'excluded' ? 'Include' : 'Not a purchase'}
                     </button>
@@ -310,6 +336,209 @@ function RoundUps({ trace }: { trace: WalletTrace }) {
           2,
         )}
       </pre>
+      <SweepPanel trace={trace} accounts={accounts} quote={quote} current={table.current} sweeps={sweeps} setSweeps={setSweeps} />
+    </>
+  )
+}
+
+interface ChainInfo {
+  balances: { wallet: number | null; htlc: number | null; supported: boolean }
+  staker: StakerInfo | null
+  validators: ValidatorRow[]
+}
+
+function SweepPanel(props: {
+  trace: WalletTrace
+  accounts: ConnectedAccounts | null
+  quote: SweepQuote
+  current: { price: number; time: number } | null
+  sweeps: SweepRecord[]
+  setSweeps: (s: SweepRecord[]) => void
+}) {
+  const { trace, accounts, quote, current, sweeps, setSweeps } = props
+  const [info, setInfo] = useState<ChainInfo | null>(null)
+  const [infoError, setInfoError] = useState<string | null>(null)
+  const [pool, setPool] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const deps = (): SweepDeps => ({
+    // Settling never sends; only executeSweep (button press) reaches the wallet.
+    provider: getProvider() ?? {
+      sendNewStakerTransaction: () => Promise.reject(new Error('Not connected')),
+      sendStakeTransaction: () => Promise.reject(new Error('Not connected')),
+    },
+    rpc,
+    store,
+    network: host.network,
+    wallet: trace.wallet,
+    ownAddresses: [...new Set([trace.wallet, ...trace.vaults, ...(accounts?.htlcAddress ? [accounts.htlcAddress] : [])])],
+    onUpdate: (r) => {
+      setSweeps(loadSweeps(store, host.network, trace.wallet))
+      updateDiag((d) => d.errors.push({ at: Date.now(), message: `sweep ${r.id}: ${r.status}${r.txHash ? ` ${r.txHash}` : ''}${r.error ? ` (${r.error})` : ''}` }))
+    },
+  })
+
+  async function refreshInfo() {
+    if (!accounts) return
+    setInfoError(null)
+    try {
+      const [balances, staker, validators] = await Promise.all([
+        getBalances(accounts),
+        rpc.getStakerByAddress(trace.wallet).then(toStakerInfo),
+        fetchValidators(host.network, store),
+      ])
+      setInfo({ balances, staker, validators })
+      setPool((p) => p ?? pickDefaultValidator(validators)?.address ?? null)
+    } catch (e) {
+      setInfoError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Read-only on load: balances (host, no dialog), staker + validators (public APIs).
+  useEffect(() => {
+    void refreshInfo()
+  }, [accounts?.walletAddress, accounts?.htlcAddress])
+
+  // Resume any sweep left unsettled by an earlier session. Chain reads only.
+  useEffect(() => {
+    for (const r of loadSweeps(store, host.network, trace.wallet)) {
+      if (r.status === 'sending' || r.status === 'submitted' || r.status === 'checking') void settleSweep(deps(), r)
+    }
+  }, [trace.wallet])
+
+  const saved = savedWithSpare(sweeps)
+  const earned = earnedOnTop(info?.staker ?? null, sweeps)
+  const gate = canStartSweep(sweeps)
+  const spendable = info ? spendableLuna(info.balances) : null
+  const partial = spendable !== null && current && quote.luna > spendable ? pickAffordable(quote.items, spendable, current.price) : null
+  const plan = partial ?? { items: quote.items, luna: quote.luna, fiat: quote.fiatTotal }
+  const route = planRoute(plan.luna, info?.staker ?? null)
+
+  async function onSweep() {
+    if (!info || !current || (route.kind !== 'new' && route.kind !== 'add')) return
+    setBusy(true)
+    setMessage(null)
+    const out = await executeSweep(deps(), {
+      route: route.kind,
+      delegation: route.kind === 'new' ? pool : null,
+      luna: plan.luna,
+      fiat: plan.fiat,
+      fiatCode: quote.fiat,
+      price: current.price,
+      priceTime: current.time,
+      itemHashes: plan.items.map((i) => i.hash),
+      stakeBefore: info.staker ? info.staker.active + info.staker.inactive + info.staker.retired : 0,
+    })
+    setBusy(false)
+    setSweeps(loadSweeps(store, host.network, trace.wallet))
+    if (out.kind === 'rejected') setMessage('Cancelled. Nothing was sent.')
+    else if (out.kind === 'blocked') setMessage(out.reason)
+    else if (out.record.status === 'confirmed') setMessage(`Staked ${nim(out.record.luna)} NIM.`)
+    else if (out.record.status === 'failed') setMessage(`Sweep failed: ${out.record.error ?? 'unknown error'}. Your round-ups stay pending.`)
+    else setMessage('Sent. Waiting for the chain to confirm; this page will keep checking.')
+    void refreshInfo()
+  }
+
+  const canSweep = !busy && !!info && !!current && gate.ok && (route.kind === 'add' || (route.kind === 'new' && !!pool))
+
+  return (
+    <>
+      <h3>Sweep into stake</h3>
+      <p>
+        Saved with Spare: <strong>{nim(saved.luna)} NIM</strong>
+        {Object.entries(saved.fiatByCode).map(([c, v]) => ` · ${money(v ?? 0, c as FiatCode)} ${c}`)}
+        {' · '}Earned on top: <strong>{nim(earned.luna)} NIM</strong>
+        {earned.approximate ? ' (approximate: you also staked outside Spare)' : ''}
+      </p>
+      {!accounts ? (
+        <p className="notice">Read-only mode. Open Spare in Nimiq Pay and connect to sweep.</p>
+      ) : (
+        <>
+          {infoError && <p className="error">Could not read balance or staking state: {infoError}</p>}
+          {info && (
+            <pre>
+              {JSON.stringify(
+                {
+                  walletBalance: info.balances.wallet,
+                  vaultBalance: info.balances.htlc,
+                  getBalanceSupported: info.balances.supported,
+                  spendableLuna: spendable,
+                  staker: info.staker,
+                  route,
+                  partial: partial ? { items: partial.items.length, of: quote.items.length, luna: partial.luna } : null,
+                },
+                null,
+                2,
+              )}
+            </pre>
+          )}
+          {route.kind === 'new' && info && (
+            <label>
+              Staking pool (ranked by the validators API)
+              <select value={pool ?? ''} onChange={(e) => setPool(e.target.value)}>
+                {info.validators
+                  .filter((v) => v.isListed)
+                  .map((v) => (
+                    <option key={v.address} value={v.address}>
+                      {v.name} · fee {v.fee === null ? '?' : `${(v.fee * 100).toFixed(1)}%`} · score {v.score?.total.toFixed(3) ?? '?'}
+                      {v.payoutType === 'none' ? ' · no payouts' : ''}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
+          {route.kind === 'wait' && <p>Spare change waits until it reaches 100 NIM ({nim(route.shortLuna)} NIM to go).</p>}
+          {partial && (
+            <p>
+              Your balance covers {partial.items.length} of {quote.items.length} round-ups (oldest first).
+            </p>
+          )}
+          {!gate.ok && <p>{gate.reason}</p>}
+          <button onClick={onSweep} disabled={!canSweep}>
+            {busy ? 'Waiting for Nimiq Pay…' : `Sweep ${nim(plan.luna)} NIM into ${route.kind === 'add' ? 'your stake' : 'a new stake'}`}
+          </button>
+          <button className="small" onClick={() => void refreshInfo()}>
+            Refresh balance
+          </button>
+          {message && <p>{message}</p>}
+        </>
+      )}
+      {sweeps.length > 0 && (
+        <>
+          <h3>Sweep history</h3>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>NIM</th>
+                  <th>Fiat</th>
+                  <th>Price</th>
+                  <th>Tx</th>
+                  <th>Items</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...sweeps].reverse().map((r) => (
+                  <tr key={r.id}>
+                    <td>{new Date(r.createdAt).toLocaleString(host.language)}</td>
+                    <td title={r.error}>{r.status}</td>
+                    <td>{nim(r.luna)}</td>
+                    <td>
+                      {money(r.fiat, r.fiatCode)} {r.fiatCode}
+                    </td>
+                    <td>{r.price.toPrecision(4)}</td>
+                    <td title={r.txHash ?? ''}>{r.txHash ? `${r.txHash.slice(0, 10)}…` : '—'}</td>
+                    <td>{r.itemHashes.length}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </>
   )
 }

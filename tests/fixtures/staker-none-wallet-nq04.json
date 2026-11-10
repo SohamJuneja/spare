@@ -1,0 +1,9 @@
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32603,
+    "message": "Internal error",
+    "data": "No staker with address: NQ04 HH5C HSLU VHGD EP4G BA1R 1MGB PT0X EY9V"
+  },
+  "id": 1
+}

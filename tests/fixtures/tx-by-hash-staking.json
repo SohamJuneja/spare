@@ -1,0 +1,34 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "data": {
+      "hash": "40a52fd5e18ecd1183de80f19eaf5d02e08a7193412f0cd02795de1b679b94ee",
+      "blockNumber": 66560759,
+      "timestamp": 1794346365527,
+      "confirmations": 6094,
+      "size": 386,
+      "relatedAddresses": [
+        "NQ77 0000 0000 0000 0000 0000 0000 0000 0001",
+        "NQ32 7HKC C30M X9NJ AURD EDSG 98H5 UX0R UEQB",
+        "NQ15 HNAH YRVH DFVM YHAG BSXG 0QHK KA0Q XDR7",
+        "NQ91 Q6RM DEQX 0Q0S CTRM CN3A XEQR YLH2 803M",
+        "NQ56 R5JT 1V5D 992A P60D 8E04 QQVN FGN7 SR3Q"
+      ],
+      "from": "NQ91 Q6RM DEQX 0Q0S CTRM CN3A XEQR YLH2 803M",
+      "fromType": 2,
+      "to": "NQ77 0000 0000 0000 0000 0000 0000 0000 0001",
+      "toType": 3,
+      "value": 18000000,
+      "fee": 0,
+      "senderData": "",
+      "recipientData": "05018d951fe7b16bfb5fc5505ebd0062339a818f3727002484f2d77142d6053e0f33ef7deece99ba3187842b0aed9390fd06eecfc5f113003740bdd1275f5c5724885ecf9465373e6d2f39c68a65849938d78a2f354d31190796059ab97c4d4be1ae8755fc16f647753e2f0e222fc9bf37f4c9820a1e3500",
+      "flags": 0,
+      "validityStartHeight": 66560758,
+      "proof": "010012636363d6bbaa599bef8997a2c8e20dd6464b635aba3e6fd8fafc55a58dba3a006d9b7d19b8693ec37a537a0a7d058f97ae231a5a9ad59c9a7639455a05c3be0de2f267444209c435d97165c4d137314d783f4b5aad7a10e0e285c0e86ae5be0e002484f2d77142d6053e0f33ef7deece99ba3187842b0aed9390fd06eecfc5f11300bcc16651793f5b079885e83eb0f1b640fd7946328d87a6a55fa9271a157b763458fc2ea1a2a3f7a889f85a06f77cb9f56680fa027f0c7e59efeaa138b9369001",
+      "networkId": 24,
+      "executionResult": true
+    },
+    "metadata": null
+  },
+  "id": 1
+}

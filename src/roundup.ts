@@ -15,9 +15,13 @@ export type Multiplier = 1 | 2 | 3
 export type SpendStatus = 'pending' | 'swept' | 'excluded'
 
 export interface RoundUpSettings {
-  step: number
+  /** The user's setting; each payment rounds to min(maxStep, 10^floor(log10(fiat))). */
+  maxStep: number
   multiplier: Multiplier
 }
+
+/** Max share of a payment that can be saved, before the multiplier. */
+export const ROUND_UP_CAP = 0.5
 
 export interface RoundUpItem {
   hash: string
@@ -33,6 +37,8 @@ export interface RoundUpItem {
   /** Nearest-day price or FX from another day. */
   priceApproximate: boolean
   fiatAtTime: number
+  /** Step used for this payment, sized to its magnitude. */
+  step: number
   /** After the cap, before the multiplier. */
   roundUp: number
   /** roundUp × multiplier: what this item adds to the sweep. */
@@ -61,6 +67,16 @@ export function roundUpAmount(fiat: number, step: number): number {
   return round8(Math.ceil(q) * step - fiat)
 }
 
+/** Step sized to the payment: the power of ten at or below it, never above the user's max step. */
+export function stepFor(fiat: number, maxStep: number): number {
+  if (!(fiat > 0)) return maxStep
+  // Float-safe floor(log10): 0.001 must give -3, and 999.9999999 must not jump to 3.
+  let exp = Math.floor(Math.log10(fiat))
+  if (10 ** (exp + 1) <= fiat * (1 + 1e-12)) exp += 1
+  else if (10 ** exp > fiat * (1 + 1e-12)) exp -= 1
+  return Math.min(maxStep, round8(10 ** exp) || 10 ** exp)
+}
+
 export function buildRoundUps(
   spends: SpendEvent[],
   table: Pick<PriceTable, 'daily' | 'approxDays'>,
@@ -73,8 +89,8 @@ export function buildRoundUps(
     const day = dayKey(s.timestamp)
     const p = priceForDay(table, day)
     const fiatAtTime = p ? round8((s.valueLuna / 1e5) * p.price) : 0
-    // Cap: never save more than the payment itself.
-    const roundUp = Math.min(roundUpAmount(fiatAtTime, settings.step), fiatAtTime)
+    const step = stepFor(fiatAtTime, settings.maxStep)
+    const roundUp = round8(Math.min(roundUpAmount(fiatAtTime, step), fiatAtTime * ROUND_UP_CAP))
     return {
       hash: s.hash,
       timestamp: s.timestamp,
@@ -87,6 +103,7 @@ export function buildRoundUps(
       priceDay: p?.day ?? null,
       priceApproximate: p ? p.approximate : true,
       fiatAtTime,
+      step,
       roundUp,
       saved: round8(roundUp * settings.multiplier),
       status: swept.has(s.hash) ? 'swept' : excluded.has(s.hash) ? 'excluded' : 'pending',

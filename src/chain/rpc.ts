@@ -55,6 +55,16 @@ export interface RpcHtlcAccount {
   totalAmount: number
 }
 
+/** getStakerByAddress `result.data` (tests/fixtures/staker-wallet-nq56.json). Luna. */
+export interface RpcStaker {
+  address: string
+  balance: number
+  delegation: string | null
+  inactiveBalance: number
+  inactiveFrom: number | null
+  retiredBalance: number
+}
+
 /** Pruned/expired HTLCs come back as `basic` with balance 0. */
 export type RpcAccount = RpcBasicAccount | RpcHtlcAccount | { address: string; balance: number; type: string; [k: string]: unknown }
 
@@ -188,7 +198,7 @@ export function createRpcClient(network: Network, opts: RpcClientOptions = {}) {
         return await once<T>(method, params)
       } catch (e) {
         // JSON-RPC param errors are deterministic; don't retry those.
-        if (e instanceof RpcError && e.code === -32602) throw e
+        if (e instanceof RpcError && (e.code === -32602 || /no staker|not found/i.test(e.message))) throw e
         // once() waits out a 429 pause itself; otherwise a short backoff.
         if (!(e instanceof RpcError && e.code === 429)) await new Promise((r) => setTimeout(r, 750))
         return once<T>(method, params)
@@ -220,7 +230,27 @@ export function createRpcClient(network: Network, opts: RpcClientOptions = {}) {
     return call<RpcAccount>('getAccountByAddress', [address])
   }
 
-  return { url, stats, getTransactionsByAddress, getTransactionsSince, getAccountByAddress }
+  /** Null when the address has never staked: the node answers -32603 "No staker with address". */
+  async function getStakerByAddress(address: string): Promise<RpcStaker | null> {
+    try {
+      return await call<RpcStaker>('getStakerByAddress', [address])
+    } catch (e) {
+      if (e instanceof RpcError && /no staker/i.test(e.message)) return null
+      throw e
+    }
+  }
+
+  /** Null until the tx is in a block: the node answers -32603 "Transaction not found". */
+  async function getTransactionByHash(hash: string): Promise<RpcTransaction | null> {
+    try {
+      return await call<RpcTransaction>('getTransactionByHash', [hash])
+    } catch (e) {
+      if (e instanceof RpcError && /not found/i.test(e.message)) return null
+      throw e
+    }
+  }
+
+  return { url, stats, getTransactionsByAddress, getTransactionsSince, getAccountByAddress, getStakerByAddress, getTransactionByHash }
 }
 
 export type RpcClient = ReturnType<typeof createRpcClient>

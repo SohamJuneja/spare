@@ -3,6 +3,7 @@ import { Fiat, getHostFiat, getHostLanguage, getHostNetwork, init, NimiqProvider
 import { normalizeAddress } from '../chain/address'
 import type { Network } from '../chain/rpc'
 import { updateDiag } from '../diagnostics'
+import { classifyWalletError } from '../sweep'
 
 export interface HostInfo {
   insideNimiqPay: boolean
@@ -83,10 +84,33 @@ export async function connect(): Promise<ConnectResult> {
     return { ok: true, accounts }
   } catch (error) {
     if (NimiqProviderError.is(error)) {
-      const rejected = /reject|denied|cancel/i.test(`${error.type} ${error.message}`)
+      const rejected = classifyWalletError(error).kind === 'rejected'
       return { ok: false, reason: rejected ? 'rejected' : 'error', message: `${error.type}: ${error.message}` }
     }
     // init() rejects with a plain Error when the provider never appears within the timeout.
     return { ok: false, reason: 'error', message: error instanceof Error ? error.message : String(error) }
   }
+}
+
+/** The provider after a successful connect(); null before. */
+export function getProvider(): NimiqProvider | null {
+  return provider
+}
+
+/**
+ * Read-only balances through the host (no approval dialog, no public-RPC budget). A failed read is null,
+ * never 0. Older hosts lack getBalance.
+ */
+export async function getBalances(accounts: ConnectedAccounts): Promise<{ wallet: number | null; htlc: number | null; supported: boolean }> {
+  const p = provider
+  if (!p || typeof (p as { getBalance?: unknown }).getBalance !== 'function') return { wallet: null, htlc: null, supported: false }
+  const read = (a: string | null) =>
+    a
+      ? p.getBalance(a).then(
+          (n) => (Number.isSafeInteger(n) && n >= 0 ? n : null),
+          () => null,
+        )
+      : Promise.resolve(null)
+  const [wallet, htlc] = await Promise.all([read(accounts.walletAddress), read(accounts.htlcAddress)])
+  return { wallet, htlc, supported: true }
 }

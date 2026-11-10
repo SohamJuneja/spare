@@ -58,14 +58,32 @@ On refresh, each live address is paged with 25 rows at a time only until the cac
 
 `src/roundup.ts` (pure):
 
-- `roundUp = ceil(fiat/step)×step − fiat`, capped at the payment's own fiat value, then multiplied (×1–×3).
+- Each payment gets its own step: `min(maxStep, 10^floor(log10(fiat)))`. maxStep is the user's setting (USD/EUR 1.00, CRC 500, GMD 10 by default).
+- `roundUp = ceil(fiat/step)×step − fiat`, capped at 50% of the payment, then multiplied (×1–×3).
 - `getSweepQuote()` sums pending items and converts them to floored integer luna at the current price.
 
 Run `npx tsx scripts/quote.ts "<NQ address>" CRC` for the full CLI view.
 
+## Sweep
+
+`src/sweep.ts` stakes the quote into the user's own stake. All of these were verified on mainnet:
+
+- **The staker is the wallet.** Nimiq Pay sends the staking tx from the vault (tx `40a52fd5…`), but `getStakerByAddress` answers for the wallet and not for the vault.
+- **Minimum stake:** `getPolicyConstants.minimumStake` is 100 NIM. Under core-rs `enforce_min_stake`, active+inactive must be 0 or ≥ 100 NIM after any change.
+- **Routing:** a new staker needs ≥ 100 NIM (`sendNewStakerTransaction`). An existing staker adds any amount (`sendStakeTransaction`). Below the minimum, the change waits.
+- **Default pool:** the validators API's own ranking (sorted by `score.total`), skipping pools with `payoutType: none` or stale score data.
+- **Records:** every sweep is saved before the wallet dialog opens and followed on chain with `getTransactionByHash`. Items count as swept only once the tx is confirmed.
+- **Unknown outcomes:** an unknown outcome blocks new sweeps until the chain answers. Hash-less outcomes are matched by sender, amount and destination, or expire after the 2h validity window.
+
+Re-capture the staking fixtures with `npx tsx scripts/capture-staking-fixtures.ts`.
+
 ## Credits
 
 [NimBooks](https://github.com/subimpact/nimbooks) (MIT) was named as a reference for HTLC flows. Spare's vault and HTLC logic was derived from live mainnet data, and no NimBooks code was copied or adapted. Reading NimBooks' price code is how we learned that `nimiq-2` is the right CoinGecko id and that DefiLlama serves its daily history. Spare's price code is its own.
+
+[Kuza](https://github.com/swiftbotlabs/kuza) (MIT, © 2026 Swift Bot Labs): Spare's `classifyWalletError` adapts Kuza's `wallet.js` `classifyError`/`errorHash`. Those map `PERMISSION_DENIED`/4001 to cancel and `TRANSACTION_OUTCOME_UNKNOWN`/-32001 to unknown, with the hash read from `error.data.hash`. Kuza's `staking.js` notes also pointed to the core-rs minimum-stake invariants, which we re-checked in core-rs.
+
+[accrue](https://github.com/RaYYeR220/accrue) (MIT, © 2026 RaYYeR220): `spendableLuna` follows accrue's `stakeFundsOf` rule. One staking tx is funded from one account: the vault when it holds NIM, otherwise the wallet.
 
 Built with the official Nimiq `mini-apps` AI skill (`npx skills add nimiq/developer-center --skill mini-apps`).
 

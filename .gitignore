@@ -25,3 +25,5 @@ dist-ssr
 
 # Machine-specific symlink created by `npx skills add` (skill files live in .agents/)
 .claude/
+
+.vercel

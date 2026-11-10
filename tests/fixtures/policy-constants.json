@@ -1,0 +1,24 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "data": {
+      "stakingContractAddress": "NQ77 0000 0000 0000 0000 0000 0000 0000 0001",
+      "coinbaseAddress": "NQ81 C01N BASE 0000 0000 0000 0000 0000 0000",
+      "transactionValidityWindow": 7200,
+      "maxSizeMicroBody": 100000,
+      "slots": 512,
+      "blocksPerBatch": 60,
+      "batchesPerEpoch": 720,
+      "blocksPerEpoch": 43200,
+      "validatorDeposit": 10000000000,
+      "minimumStake": 10000000,
+      "totalSupply": 2100000000000000,
+      "blockSeparationTime": 1000,
+      "jailEpochs": 8,
+      "genesisBlockNumber": 3456000,
+      "maxSupportedVersion": 2
+    },
+    "metadata": null
+  },
+  "id": 1
+}

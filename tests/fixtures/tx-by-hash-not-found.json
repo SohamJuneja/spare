@@ -1,0 +1,9 @@
+{
+  "jsonrpc": "2.0",
+  "error": {
+    "code": -32603,
+    "message": "Internal error",
+    "data": "Transaction not found: 0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "id": 1
+}

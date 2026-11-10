@@ -25,12 +25,12 @@ console.log(`RPC warm: ${warm.stats.requests} requests, ${warm.stats.throttled42
 
 const table = await getPriceTable(fiat, warm.spends.map((s) => dayKey(s.timestamp)), { store })
 console.log(`Prices: ${table.sources.join('; ')}`)
-const items = buildRoundUps(warm.spends, table, { step, multiplier }, { excluded: [], swept: [] })
+const items = buildRoundUps(warm.spends, table, { maxStep: step, multiplier }, { excluded: [], swept: [] })
 const quote = getSweepQuote(fiat, items, table.current)
 
 const f = (x: number) => x.toFixed(fiat === 'CRC' || fiat === 'GMD' ? 2 : 4)
-console.log(`\nStep ${step} ${fiat}, ×${multiplier}`)
-console.log(['day'.padEnd(10), 'label'.padEnd(16), 'NIM'.padStart(12), `price ${fiat}/NIM`.padStart(16), `${fiat} at time`.padStart(12), 'round-up'.padStart(10), 'saved'.padStart(10), 'status', 'hash'].join('  '))
+console.log(`\nMax step ${step} ${fiat} (per-payment step = min(max, 10^floor(log10 fiat))), cap 50%, ×${multiplier}`)
+console.log(['day'.padEnd(10), 'label'.padEnd(16), 'NIM'.padStart(12), `price ${fiat}/NIM`.padStart(16), `${fiat} at time`.padStart(12), 'step'.padStart(7), 'round-up'.padStart(10), 'saved'.padStart(10), 'status', 'hash'].join('  '))
 for (const i of items) {
   console.log(
     [
@@ -39,6 +39,7 @@ for (const i of items) {
       (i.valueLuna / 1e5).toFixed(5).padStart(12),
       `${i.price?.toPrecision(6) ?? 'n/a'}${i.priceApproximate ? '*' : ''}`.padStart(16),
       f(i.fiatAtTime).padStart(12),
+      String(i.step).padStart(7),
       f(i.roundUp).padStart(10),
       f(i.saved).padStart(10),
       i.status.padEnd(7),
@@ -48,3 +49,5 @@ for (const i of items) {
 }
 console.log('(* = nearest-day price or FX from another day)')
 console.log('\ngetSweepQuote() =', JSON.stringify({ ...quote, items: quote.items.map((i) => ({ hash: i.hash.slice(0, 12), saved: i.saved })) }, null, 2))
+const spentFiat = items.reduce((s, i) => s + i.fiatAtTime, 0)
+console.log(`Spent ${f(spentFiat)} ${fiat}; saving ${f(quote.fiatTotal)} ${fiat} = ${((quote.fiatTotal / spentFiat) * 100).toFixed(1)}% of spend`)

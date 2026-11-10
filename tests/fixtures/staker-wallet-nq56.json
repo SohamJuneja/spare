@@ -1,0 +1,18 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "data": {
+      "address": "NQ56 R5JT 1V5D 992A P60D 8E04 QQVN FGN7 SR3Q",
+      "balance": 18000000,
+      "delegation": "NQ15 HNAH YRVH DFVM YHAG BSXG 0QHK KA0Q XDR7",
+      "inactiveBalance": 0,
+      "inactiveFrom": null,
+      "retiredBalance": 0
+    },
+    "metadata": {
+      "blockNumber": 66566851,
+      "blockHash": "8e2871018af8beb4edb29cb0c88d7e8db226807790447d957f6ea353ae15488f"
+    }
+  },
+  "id": 1
+}
