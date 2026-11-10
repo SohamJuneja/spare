@@ -1,0 +1,30 @@
+{
+  "_derivedFrom": "43dd84c6fc88e8b818da0c7280d1ece8eee92cb63082142ccad2460bfd66fb6c",
+  "_note": "real tx with executionResult set to false",
+  "tx": {
+    "hash": "43dd84c6fc88e8b818da0c7280d1ece8eee92cb63082142ccad2460bfd66fb6c",
+    "blockNumber": 65988077,
+    "timestamp": 1793776016275,
+    "confirmations": 574438,
+    "size": 280,
+    "relatedAddresses": [
+      "NQ89 4VDF DQ8Q JEGL KX8U A1HC DE6K A78Y CJR5",
+      "NQ32 7HKC C30M X9NJ AURD EDSG 98H5 UX0R UEQB",
+      "NQ04 HH5C HSLU VHGD EP4G BA1R 1MGB PT0X EY9V",
+      "NQ09 XHGH TP20 DDNQ H4SK JVPX QP1R XG2B A91V"
+    ],
+    "from": "NQ89 4VDF DQ8Q JEGL KX8U A1HC DE6K A78Y CJR5",
+    "fromType": 2,
+    "to": "NQ09 XHGH TP20 DDNQ H4SK JVPX QP1R XG2B A91V",
+    "toType": 0,
+    "value": 500000,
+    "fee": 0,
+    "senderData": "",
+    "recipientData": "6b697474793a61616b676e627363",
+    "flags": 0,
+    "validityStartHeight": 65988075,
+    "proof": "010012636363d6bbaa599bef8997a2c8e20dd6464b635aba3e6fd8fafc55a58dba3a00ef4ffe88b851e7cbdf940d56f5d2a3b9eb6c3c6e9ea5358b74d76ba572dd2746d5d9cf92742658b87a7014f2c514de93c2f8b09da16762c75be305e287eb2e07004bbbf630341e4d25353b0200c77822c93e986ad161b076e45d672ba6fe51eb9400897a3f9817684c01b5bac8fe241c7166fd2672d2d987a766b406d877a5059da019446996d976e2b2217a06078af21c710764938c457277f547e50d374c125408",
+    "networkId": 24,
+    "executionResult": false
+  }
+}

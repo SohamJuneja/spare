@@ -1,0 +1,88 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "data": [
+      {
+        "hash": "2d5de232bcda550156e1751b2ecf338a53bb6a8e4426d722f45095fc9b785818",
+        "blockNumber": 66355258,
+        "timestamp": 1794141697629,
+        "confirmations": 207258,
+        "size": 266,
+        "relatedAddresses": [
+          "NQ22 6D6X JBMX 8GLY 6F3K VXTS DCMG KAFG SXKG",
+          "NQ32 7HKC C30M X9NJ AURD EDSG 98H5 UX0R UEQB",
+          "NQ51 DE7S FX74 A8BL L7GK EYGB YVPF UK6C 8DXT"
+        ],
+        "from": "NQ22 6D6X JBMX 8GLY 6F3K VXTS DCMG KAFG SXKG",
+        "fromType": 2,
+        "to": "NQ51 DE7S FX74 A8BL L7GK EYGB YVPF UK6C 8DXT",
+        "toType": 0,
+        "value": 63767614,
+        "fee": 0,
+        "senderData": "",
+        "recipientData": "",
+        "flags": 0,
+        "validityStartHeight": 66355256,
+        "proof": "010012636363d6bbaa599bef8997a2c8e20dd6464b635aba3e6fd8fafc55a58dba3a0045e73874ab54ba4bf5577eaf1e00a58160ad1b34ca681414e86a775687215217723dbe9aa43b6983b4306f7d566272d6e14a38fc06c8e5a98bb4c561899864030057b6febf2f31c4a0c5ab2144bab7ef5628ff14e66dcb32fcaa8f64f98729f52b00bd6a54dabdce9d78d81cdb7e51785668ab77de9f6f07cc42f552d05d4b47777567e1f903b327375301d46301b78b167d46afe978c60b765776e7bb9ef812c300",
+        "networkId": 24,
+        "executionResult": true
+      },
+      {
+        "hash": "bd1f4c025a9fa85dbfc6f4963d0ab9095a235d1b29121aeefd8e636495de6d8f",
+        "blockNumber": 66069163,
+        "timestamp": 1793856789680,
+        "confirmations": 493353,
+        "size": 348,
+        "relatedAddresses": [
+          "NQ22 6D6X JBMX 8GLY 6F3K VXTS DCMG KAFG SXKG",
+          "NQ32 7HKC C30M X9NJ AURD EDSG 98H5 UX0R UEQB",
+          "NQ29 BXLB Q256 S4LJ MR4D 5KQV TMMT C3C9 TY1A",
+          "NQ51 DE7S FX74 A8BL L7GK EYGB YVPF UK6C 8DXT",
+          "NQ56 VE9K PV0Y TK4T QBMY 8E9G B85J QR6M MSHL"
+        ],
+        "from": "NQ22 6D6X JBMX 8GLY 6F3K VXTS DCMG KAFG SXKG",
+        "fromType": 2,
+        "to": "NQ29 BXLB Q256 S4LJ MR4D 5KQV TMMT C3C9 TY1A",
+        "toType": 2,
+        "value": 1292551531,
+        "fee": 0,
+        "senderData": "",
+        "recipientData": "6b8fa7f8e452174a1e1377e0bff6efe4ccc437dbeb933bf41fdcc9bc2ebf439305a0b2c64d5aea3403e45a1f8cad76c08a3a72027f7c7dbdbe3d053714cd22b76bae891471f1f0265001000001a1b748a9b8",
+        "flags": 1,
+        "validityStartHeight": 66069161,
+        "proof": "010012636363d6bbaa599bef8997a2c8e20dd6464b635aba3e6fd8fafc55a58dba3a00337dcb2b81d7706ee98dd4104d38bed75e9e1b3b248677b9cf4a80c0824250329d96ddc8290cb0847b33a75c113faae8e10d662a279866c3f2917350e0feb10d0057b6febf2f31c4a0c5ab2144bab7ef5628ff14e66dcb32fcaa8f64f98729f52b00d762e3b83d65c71c184714003f990fb64a8952b4973118d820f2e356786605565c0f844e203eb4cc63d4f971fe91f33406d5f186064393028c76287192184602",
+        "networkId": 24,
+        "executionResult": true
+      },
+      {
+        "hash": "4a60c316804994346aaf4f8fb87ea411cf1ffb59f2f071a693680ddead15d7a6",
+        "blockNumber": 65842744,
+        "timestamp": 1793631283558,
+        "confirmations": 719772,
+        "size": 348,
+        "relatedAddresses": [
+          "NQ22 6D6X JBMX 8GLY 6F3K VXTS DCMG KAFG SXKG",
+          "NQ32 7HKC C30M X9NJ AURD EDSG 98H5 UX0R UEQB",
+          "NQ51 DE7S FX74 A8BL L7GK EYGB YVPF UK6C 8DXT",
+          "NQ14 LU5R UH54 92SH GEN4 U63C SV4V 7N49 YYU4",
+          "NQ33 RKPU NQM5 N19R 8MK3 6BUS 70VV 8PQ0 GGD0"
+        ],
+        "from": "NQ33 RKPU NQM5 N19R 8MK3 6BUS 70VV 8PQ0 GGD0",
+        "fromType": 2,
+        "to": "NQ22 6D6X JBMX 8GLY 6F3K VXTS DCMG KAFG SXKG",
+        "toType": 2,
+        "value": 1356319145,
+        "fee": 0,
+        "senderData": "",
+        "recipientData": "6b8fa7f8e452174a1e1377e0bff6efe4ccc437db3c66c60c15f26d25732d737504a225e7819e3b0b01000000000000000000000000000000000000000000000000000000000000000001000001a1e4da6869",
+        "flags": 1,
+        "validityStartHeight": 65842742,
+        "proof": "010091b21f4b100273bd7034f6369c29d1f7ba72dba7de6720ad3cd8b8191621891300a5e52d1067fe1a10f2f92aa3b984924aa238e960d44dcbb1d695dd0c2e47e27ad5cfb7b9415484b33b2101f0c6326469079973483be6258e0a7605ad91bba0020057b6febf2f31c4a0c5ab2144bab7ef5628ff14e66dcb32fcaa8f64f98729f52b008194e55f03c42048de9f28bf4f51c673fbab58bed194928e4493759fb7f274c9f2b384546fce0405091e29864c7aa1aa05d11671eada5bb821d37b74a2c64f09",
+        "networkId": 24,
+        "executionResult": true
+      }
+    ],
+    "metadata": null
+  },
+  "id": 1
+}

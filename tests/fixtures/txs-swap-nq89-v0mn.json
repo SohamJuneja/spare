@@ -1,0 +1,60 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "data": [
+      {
+        "hash": "4e34eed227929e7d6e14ec2027690de28888fb13c53ae44d2763cbeef7753586",
+        "blockNumber": 66242450,
+        "timestamp": 1794029286586,
+        "confirmations": 320065,
+        "size": 235,
+        "relatedAddresses": [
+          "NQ89 V0MN CVGT 3RC9 B7PA F1YJ L564 TEMK A0TM",
+          "NQ56 VE9K PV0Y TK4T QBMY 8E9G B85J QR6M MSHL"
+        ],
+        "from": "NQ89 V0MN CVGT 3RC9 B7PA F1YJ L564 TEMK A0TM",
+        "fromType": 2,
+        "to": "NQ56 VE9K PV0Y TK4T QBMY 8E9G B85J QR6M MSHL",
+        "toType": 0,
+        "value": 8205884,
+        "fee": 0,
+        "senderData": "",
+        "recipientData": "",
+        "flags": 0,
+        "validityStartHeight": 66242449,
+        "proof": "000103ec640c4dc20e72d76582035cf780c7d6d645dce995617efbb9d91b38c5bbf5a620b2009745667f73947cac22d83aaea32b161266cfbfc27b4fc6b6944def43b3cf0008600ec9f0d44dc8d43275c705d7780caa31497d2620da4d7838d10574a6dfa1002db6d2bb599b94c6caee2a7310c1d0403c9dc486ea709ebd6f8ce9f9798066e84781c1120b8fe1afaacd621d0e6358d8c9d6ba5e279c3890f1ce7bc8a6ea380d",
+        "networkId": 24,
+        "executionResult": true
+      },
+      {
+        "hash": "87d870217979881c949d33bdf534ccced31cd0f7efd46b6e19702c110306243a",
+        "blockNumber": 66242444,
+        "timestamp": 1794029280585,
+        "confirmations": 320071,
+        "size": 348,
+        "relatedAddresses": [
+          "NQ89 4VDF DQ8Q JEGL KX8U A1HC DE6K A78Y CJR5",
+          "NQ32 7HKC C30M X9NJ AURD EDSG 98H5 UX0R UEQB",
+          "NQ04 HH5C HSLU VHGD EP4G BA1R 1MGB PT0X EY9V",
+          "NQ89 V0MN CVGT 3RC9 B7PA F1YJ L564 TEMK A0TM",
+          "NQ56 VE9K PV0Y TK4T QBMY 8E9G B85J QR6M MSHL"
+        ],
+        "from": "NQ89 4VDF DQ8Q JEGL KX8U A1HC DE6K A78Y CJR5",
+        "fromType": 2,
+        "to": "NQ89 V0MN CVGT 3RC9 B7PA F1YJ L564 TEMK A0TM",
+        "toType": 2,
+        "value": 8205884,
+        "fee": 0,
+        "senderData": "",
+        "recipientData": "8c4ac8ea9cec60d75c905a8390d60bbec1e77d3deb933bf41fdcc9bc2ebf439305a0b2c64d5aea3403ec640c4dc20e72d76582035cf780c7d6d645dce995617efbb9d91b38c5bbf5a601000001a1c07c5098",
+        "flags": 1,
+        "validityStartHeight": 66242441,
+        "proof": "010012636363d6bbaa599bef8997a2c8e20dd6464b635aba3e6fd8fafc55a58dba3a002477cfae169c289d2b06d71e098d19324f8306a148d27cb467a318fa670b541d1e945d1dd25e018b92bce0257d94836a0dec834a8e670fd849bcf6f56a89f00a004bbbf630341e4d25353b0200c77822c93e986ad161b076e45d672ba6fe51eb94008e37e706ace70b6d2a7337e09ec6232d37e9bebce7081254692f8b1974ad1831fdc9887bb0bfd695705260c7d61b5b016bc3ce9a1ac4f9ceb30cf8366d38970b",
+        "networkId": 24,
+        "executionResult": true
+      }
+    ],
+    "metadata": null
+  },
+  "id": 1
+}

@@ -1,0 +1,15 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "data": {
+      "address": "NQ89 V0MN CVGT 3RC9 B7PA F1YJ L564 TEMK A0TM",
+      "balance": 0,
+      "type": "basic"
+    },
+    "metadata": {
+      "blockNumber": 66562515,
+      "blockHash": "ec83755677282d7b3e9797a6d6e5e6e1b4f1db39813073a6f8337caa369158e8"
+    }
+  },
+  "id": 1
+}

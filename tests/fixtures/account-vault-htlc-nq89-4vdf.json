@@ -1,0 +1,24 @@
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "data": {
+      "address": "NQ89 4VDF DQ8Q JEGL KX8U A1HC DE6K A78Y CJR5",
+      "balance": 3757761,
+      "type": "htlc",
+      "sender": "NQ04 HH5C HSLU VHGD EP4G BA1R 1MGB PT0X EY9V",
+      "recipient": "NQ32 7HKC C30M X9NJ AURD EDSG 98H5 UX0R UEQB",
+      "hashRoot": {
+        "algorithm": "blake2b",
+        "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "hashCount": 1,
+      "timeout": 1794876463786,
+      "totalAmount": 60000000
+    },
+    "metadata": {
+      "blockNumber": 66562514,
+      "blockHash": "e48153cffca23bc4bf1cb20946b21edca0e788e71f6d0e7deed41b2ed628ec88"
+    }
+  },
+  "id": 1
+}

@@ -1,0 +1,52 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color-scheme: light dark;
+}
+body {
+  margin: 0;
+  padding: 16px;
+}
+main {
+  max-width: 720px;
+  margin: 0 auto;
+}
+pre {
+  overflow-x: auto;
+  font-size: 12px;
+}
+form,
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+input,
+button {
+  min-height: 44px;
+  font-size: 16px;
+}
+.error {
+  color: #c62828;
+}
+.notice {
+  padding: 8px;
+  border: 1px solid currentColor;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+}
+td,
+th {
+  padding: 4px 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+tr.muted {
+  opacity: 0.5;
+}

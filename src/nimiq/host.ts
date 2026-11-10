@@ -1,0 +1,74 @@
+// Thin wrapper over @nimiq/mini-app-sdk. Never throws outside Nimiq Pay; callers get typed results.
+import { Fiat, getHostFiat, getHostLanguage, getHostNetwork, init, NimiqProviderError, type NimiqProvider } from '@nimiq/mini-app-sdk'
+import { normalizeAddress } from '../chain/address'
+import type { Network } from '../chain/rpc'
+
+export interface HostInfo {
+  insideNimiqPay: boolean
+  network: Network
+  fiat: string
+  language: string
+}
+
+export interface ConnectedAccounts {
+  walletAddress: string
+  /** Current vault. Null for a fresh wallet that never received NIM. */
+  htlcAddress: string | null
+}
+
+export type ConnectResult =
+  | { ok: true; accounts: ConnectedAccounts }
+  | { ok: false; reason: 'not-in-nimiq-pay' | 'rejected' | 'no-accounts' | 'error'; message: string }
+
+/** Nimiq Pay seeds window.nimiqPay before page scripts run, so this is reliable synchronously. */
+export function getHost(): HostInfo {
+  const insideNimiqPay = typeof window !== 'undefined' && (!!window.nimiqPay || !!window.nimiq)
+  return {
+    insideNimiqPay,
+    network: getHostNetwork() ?? 'mainnet',
+    fiat: getHostFiat() ?? Fiat.USD,
+    language: getHostLanguage() ?? 'en',
+  }
+}
+
+type AccountsListener = (accounts: ConnectedAccounts) => void
+const listeners = new Set<AccountsListener>()
+let provider: NimiqProvider | null = null
+
+/** Subscribe to vault rotations (Nimiq Pay replaces the HTLC about every 7 days). Returns an unsubscribe fn. */
+export function onAccountsChanged(listener: AccountsListener): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+function toAccounts(list: string[]): ConnectedAccounts | null {
+  const [wallet, htlc] = list
+  if (!wallet) return null
+  return { walletAddress: normalizeAddress(wallet), htlcAddress: htlc ? normalizeAddress(htlc) : null }
+}
+
+/** Waits for the host provider and asks for account access (shows a native approval dialog). Call from a user action. */
+export async function connect(): Promise<ConnectResult> {
+  if (!getHost().insideNimiqPay) {
+    return { ok: false, reason: 'not-in-nimiq-pay', message: 'Open Spare in Nimiq Pay to connect your wallet.' }
+  }
+  try {
+    if (!provider) {
+      provider = await init({ timeout: 10_000 })
+      provider.on('accountsChanged', (list: string[]) => {
+        const accounts = toAccounts(list)
+        if (accounts) for (const l of listeners) l(accounts)
+      })
+    }
+    const accounts = toAccounts(await provider.listAccounts())
+    if (!accounts) return { ok: false, reason: 'no-accounts', message: 'Nimiq Pay returned no accounts.' }
+    return { ok: true, accounts }
+  } catch (error) {
+    if (NimiqProviderError.is(error)) {
+      const rejected = /reject|denied|cancel/i.test(`${error.type} ${error.message}`)
+      return { ok: false, reason: rejected ? 'rejected' : 'error', message: `${error.type}: ${error.message}` }
+    }
+    // init() rejects with a plain Error when the provider never appears within the timeout.
+    return { ok: false, reason: 'error', message: error instanceof Error ? error.message : String(error) }
+  }
+}

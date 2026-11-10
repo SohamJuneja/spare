@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "skills": {
+    "mini-apps": {
+      "source": "nimiq/developer-center",
+      "sourceType": "github",
+      "skillPath": "skills/mini-apps/SKILL.md",
+      "computedHash": "e13045b9c0d3543b2be1c80c110f5f93f3e63a53c277acc19eb0f7bf18932e20"
+    }
+  }
+}
