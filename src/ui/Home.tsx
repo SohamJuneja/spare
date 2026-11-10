@@ -109,6 +109,8 @@ function SweepAction({ s }: { s: Spare }) {
   }
   if (!s.plan || !s.route) return null
   if (!s.info) return <div className="skeleton" style={{ height: 52, marginTop: 16 }} />
+  // An unsettled sweep locks its items, so the quote can read 0: say why instead of "nothing waiting".
+  if (!s.gate.ok) return <p className="explainer">{t('sweep.blocked')}</p>
   // Nothing pending (device bug: this used to read "Sweep 0 NIM into a new stake"). Say what the next sweep will do.
   if (s.route.kind === 'nothing') {
     // A just-confirmed Spare sweep counts as a stake even before the staker read catches up.

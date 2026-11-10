@@ -2,7 +2,19 @@
 
 A Nimiq Pay Mini App (Mini Apps Competition Cycle III, Save track). Spare reads your past spending from the chain, rounds each payment up to the next whole unit of your fiat currency, and lets you sweep the spare change into your own NIM stake.
 
-Status: task 1, which covers the scaffold, the host wrapper and the chain-history engine. The page is a debug view only.
+**Live:** https://spare-dun.vercel.app. Open it in Nimiq Pay with https://nimpay.app/miniapps/open/spare-dun.vercel.app.
+
+![Spare](screenshots/thumbnail.png)
+
+**Screens:**
+
+- **Welcome:** Connect, or Open in Nimiq Pay, or preview with a sample wallet.
+- **Home:** spare change waiting, a one-tap sweep into your own stake, Saved with Spare, Earned on top and a weekly streak.
+- **Activity:** each payment with its round-up and a "Not a purchase" toggle, plus sweep history with explorer links.
+- **Settings:** max round-up, multiplier and staking pool, with Diagnostics at the bottom.
+- **How Spare works:** what Spare can and can't see, and its limits.
+
+The app is in English and Spanish, and follows Nimiq Pay's language and fiat. Regenerate the screenshots with `npm run build && npx tsx scripts/screenshots.ts`.
 
 ## Run
 
