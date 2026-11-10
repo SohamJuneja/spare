@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { addressFromHex, isValidAddress, normalizeAddress } from '../src/chain/address'
+import { createStore } from '../src/chain/cache'
 import type { RpcClient, RpcHtlcAccount, RpcTransaction } from '../src/chain/rpc'
 import { classifyTransactions, decodeHtlcData, isVaultCreation, toSpendEvents, traceWallet } from '../src/chain/spending'
 
@@ -133,6 +134,7 @@ describe('traceWallet (offline, fixture-backed RPC)', () => {
   }
   const fakeRpc = {
     url: 'fixtures',
+    stats: { requests: 0, throttled429: 0, waitedMs: 0 },
     getTransactionsByAddress: async (a: string) => histories[a] ?? [],
     getTransactionsSince: async (a: string) => histories[a] ?? [],
     getAccountByAddress: async () => {
@@ -142,7 +144,7 @@ describe('traceWallet (offline, fixture-backed RPC)', () => {
 
   it('discovers both vaults recursively and returns only real spends', async () => {
     const now = Date.parse('2026-11-10T22:00:00Z')
-    const t = await traceWallet(W04, 30, { rpc: fakeRpc, now })
+    const t = await traceWallet(W04, 30, { rpc: fakeRpc, now, store: createStore(null) })
     expect(new Set(t.vaults)).toEqual(new Set([V_4VDF, V_UUAS]))
     expect(t.vaults).not.toContain(KUZA_ADDR)
     expect(t.spends.map((s) => s.kind).sort()).toEqual(['lightning', 'lightning', 'payment', 'payment', 'payment'])
@@ -150,7 +152,7 @@ describe('traceWallet (offline, fixture-backed RPC)', () => {
 
   it('respects the window', async () => {
     const now = Date.parse('2026-11-10T22:00:00Z')
-    const t = await traceWallet(W04, 5, { rpc: fakeRpc, now }) // since Nov 5 22:00
+    const t = await traceWallet(W04, 5, { rpc: fakeRpc, now, store: createStore(null) }) // since Nov 5 22:00
     expect(t.spends.map((s) => s.hash.slice(0, 8)).sort()).toEqual(['87d87021', '99dfdcce'])
   })
 })

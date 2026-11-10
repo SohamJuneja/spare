@@ -2,6 +2,7 @@
 import { Fiat, getHostFiat, getHostLanguage, getHostNetwork, init, NimiqProviderError, type NimiqProvider } from '@nimiq/mini-app-sdk'
 import { normalizeAddress } from '../chain/address'
 import type { Network } from '../chain/rpc'
+import { updateDiag } from '../diagnostics'
 
 export interface HostInfo {
   insideNimiqPay: boolean
@@ -54,13 +55,30 @@ export async function connect(): Promise<ConnectResult> {
   }
   try {
     if (!provider) {
-      provider = await init({ timeout: 10_000 })
+      const t0 = performance.now()
+      try {
+        provider = await init({ timeout: 10_000 })
+      } catch (error) {
+        updateDiag((d) => (d.sdkInitError = error instanceof Error ? error.message : String(error)))
+        throw error
+      } finally {
+        updateDiag((d) => (d.sdkInitMs = Math.round(performance.now() - t0)))
+      }
       provider.on('accountsChanged', (list: string[]) => {
+        updateDiag((d) => d.accountsChanged.push({ at: Date.now(), accounts: list }))
         const accounts = toAccounts(list)
         if (accounts) for (const l of listeners) l(accounts)
       })
     }
-    const accounts = toAccounts(await provider.listAccounts())
+    let list: string[]
+    try {
+      list = await provider.listAccounts()
+      updateDiag((d) => (d.listAccounts = { at: Date.now(), result: list }))
+    } catch (error) {
+      updateDiag((d) => (d.listAccounts = { at: Date.now(), error: NimiqProviderError.is(error) ? `${error.type}: ${error.message}` : String(error) }))
+      throw error
+    }
+    const accounts = toAccounts(list)
     if (!accounts) return { ok: false, reason: 'no-accounts', message: 'Nimiq Pay returned no accounts.' }
     return { ok: true, accounts }
   } catch (error) {

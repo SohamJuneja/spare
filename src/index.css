@@ -50,3 +50,29 @@ th {
 tr.muted {
   opacity: 0.5;
 }
+select {
+  min-height: 44px;
+  font-size: 16px;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.controls label {
+  margin-top: 0;
+}
+button.small {
+  min-height: 36px;
+  font-size: 13px;
+}
+.hint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: monospace;
+  font-size: 11px;
+}

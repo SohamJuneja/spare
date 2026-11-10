@@ -3,14 +3,29 @@
 // Verified on mainnet (see tests/fixtures/):
 // - A vault is an HTLC whose creation data has sender (= refund address) = the wallet,
 //   recipient = the Nimiq Pay cosigner, and an all-zero blake2b hashRoot (no preimage path;
-//   it is only ever spent with both signatures).
+//   it is only ever spent with both signatures). The rule never looks at the cosigner address,
+//   so it holds on testnet too; the cosigner is only recorded for diagnostics.
 // - Lightning/swap HTLCs funded from a vault ALSO have sender = the wallet, but carry a real
 //   sha256 hashRoot and a swap-service recipient. Those are spends unless refunded.
 // - Expired HTLC accounts are pruned (getAccountByAddress returns basic/0), so ownership is
 //   read from the creation tx's recipientData, never from account state.
 
 import { addressFromHex, normalizeAddress, STAKING_CONTRACT } from './address'
-import { AccountType, createRpcClient, normalizeTimestamp, type Network, type RpcClient, type RpcTransaction } from './rpc'
+import {
+  balanceFromRows,
+  createStore,
+  loadWalletCache,
+  mergeRows,
+  saveWalletCache,
+  toRow,
+  type AddressRecord,
+  type KvStore,
+  type SwapStatus,
+  type TxRow,
+  type VaultRecord,
+  type WalletCacheData,
+} from './cache'
+import { AccountType, createRpcClient, normalizeTimestamp, type Network, type RpcClient } from './rpc'
 
 export type TxKind = 'payment' | 'lightning' | 'internal' | 'staking' | 'fee-only' | 'failed'
 
@@ -46,8 +61,11 @@ export interface HtlcData {
 const HASH_ALGO_SHA512 = 4
 const MAX_VAULT_DEPTH = 64
 const MAX_VAULTS = 500
+const DAY_MS = 24 * 3600 * 1000
 /** Vaults time out after 14 days, so one created before the window can still spend inside it. */
-const VAULT_LOOKBACK_MS = 15 * 24 * 3600 * 1000
+const VAULT_LOOKBACK_MS = 15 * DAY_MS
+/** Warm refreshes only need the few rows newer than the cached newest hash. */
+const WARM_PAGE_SIZE = 25
 
 /** Decode HTLC creation data: sender(20) recipient(20) algo(1) root(32|64) count(1) timeout(u64 ms). */
 export function decodeHtlcData(hex: string): HtlcData | null {
@@ -67,7 +85,7 @@ export function decodeHtlcData(hex: string): HtlcData | null {
 }
 
 /** Nimiq Pay vault signature: refund goes to `wallet`, and the hash lock is a dummy all-zero root. */
-export function isVaultCreation(tx: RpcTransaction, wallet: string): boolean {
+export function isVaultCreation(tx: TxRow, wallet: string): boolean {
   if (tx.toType !== AccountType.Htlc) return false
   const d = decodeHtlcData(tx.recipientData)
   return !!d && d.sender === normalizeAddress(wallet) && /^0+$/.test(d.hashRoot)
@@ -81,7 +99,7 @@ export interface ClassifyContext {
 }
 
 /** Pure: classify every tx sent FROM the wallet or one of its vaults. Incoming txs are dropped; hashes deduped. */
-export function classifyTransactions(txs: RpcTransaction[], ctx: ClassifyContext): ClassifiedTx[] {
+export function classifyTransactions(txs: TxRow[], ctx: ClassifyContext): ClassifiedTx[] {
   const wallet = normalizeAddress(ctx.wallet)
   const own = new Set([wallet, ...[...ctx.vaults].map(normalizeAddress)])
   const refunded = new Set([...(ctx.refundedHtlcs ?? [])].map(normalizeAddress))
@@ -97,7 +115,7 @@ export function classifyTransactions(txs: RpcTransaction[], ctx: ClassifyContext
   return out.sort((a, b) => b.timestamp - a.timestamp)
 }
 
-function classifyOne(tx: RpcTransaction, wallet: string, own: Set<string>, refunded: Set<string>): { kind: TxKind; note?: string } {
+function classifyOne(tx: TxRow, wallet: string, own: Set<string>, refunded: Set<string>): { kind: TxKind; note?: string } {
   if (!tx.executionResult) return { kind: 'failed' }
   if (tx.to === STAKING_CONTRACT || tx.toType === AccountType.Staking) return { kind: 'staking' }
   if (own.has(tx.to)) return { kind: 'internal', note: tx.to === wallet ? 'to wallet' : 'to vault' }
@@ -116,68 +134,188 @@ export function toSpendEvents(classified: ClassifiedTx[], sinceMs: number): Spen
     .map((c) => ({ hash: c.hash, timestamp: c.timestamp, valueLuna: c.valueLuna, recipient: c.to, kind: c.kind, from: c.from }))
 }
 
+export interface SwapRecord {
+  address: string
+  fundedBy: string
+  fundingHash: string
+  createdAt: number
+  hub: string
+  status: SwapStatus | 'unknown'
+}
+
 export interface WalletTrace {
   wallet: string
   vaults: string[]
+  vaultRecords: VaultRecord[]
+  swaps: SwapRecord[]
+  /** Distinct HTLC recipients of the user's vaults (mainnet: NQ32 7HKC…). */
+  cosigners: string[]
   classified: ClassifiedTx[]
   spends: SpendEvent[]
   sinceMs: number
 }
 
+/** Walk the cached rows: which HTLCs funded by own addresses are vaults, which are swaps. Pure. */
+export function discover(wallet: string, data: WalletCacheData, historyCutoff: number): { vaults: VaultRecord[]; swaps: Omit<SwapRecord, 'status'>[] } {
+  const vaults = new Map<string, VaultRecord>()
+  const swaps = new Map<string, Omit<SwapRecord, 'status'>>()
+  const queue: { address: string; depth: number }[] = [{ address: wallet, depth: 0 }]
+  const visited = new Set<string>()
+  while (queue.length) {
+    const { address, depth } = queue.shift()!
+    if (visited.has(address)) continue
+    visited.add(address)
+    for (const tx of data.addresses[address]?.rows ?? []) {
+      // A full page reaches far past the cutoff; vaults created before it can't spend in the window.
+      if (tx.from !== address || tx.toType !== AccountType.Htlc || !tx.executionResult) continue
+      const createdAt = normalizeTimestamp(tx.timestamp)
+      if (createdAt < historyCutoff) continue
+      const d = decodeHtlcData(tx.recipientData)
+      if (!d) continue
+      if (isVaultCreation(tx, wallet)) {
+        if (!vaults.has(tx.to) && depth < MAX_VAULT_DEPTH && vaults.size < MAX_VAULTS) {
+          vaults.set(tx.to, { address: tx.to, fundedBy: address, fundingHash: tx.hash, createdAt, timeoutMs: d.timeoutMs, cosigner: d.recipient, depth: depth + 1 })
+          queue.push({ address: tx.to, depth: depth + 1 })
+        }
+      } else if (!swaps.has(tx.to)) {
+        swaps.set(tx.to, { address: tx.to, fundedBy: address, fundingHash: tx.hash, createdAt, hub: d.recipient })
+      }
+    }
+  }
+  return { vaults: [...vaults.values()], swaps: [...swaps.values()] }
+}
+
+/** Pure: everything the UI needs, from cached data alone. */
+export function buildTrace(walletAddress: string, data: WalletCacheData, sinceMs: number): WalletTrace {
+  const wallet = normalizeAddress(walletAddress)
+  const { vaults, swaps } = discover(wallet, data, sinceMs - VAULT_LOOKBACK_MS)
+  const vaultSet = new Set(vaults.map((v) => v.address))
+  const swapRecords = swaps.map((s) => ({ ...s, status: data.swaps[s.address] ?? ('unknown' as const) }))
+  const refundedHtlcs = swapRecords.filter((s) => s.status === 'refunded').map((s) => s.address)
+  const pending = new Set(swapRecords.filter((s) => s.status === 'pending').map((s) => s.address))
+  const rows = [wallet, ...vaultSet].flatMap((a) => data.addresses[a]?.rows ?? [])
+  const classified = classifyTransactions(rows, { wallet, vaults: vaultSet, refundedHtlcs })
+    .filter((c) => c.timestamp >= sinceMs)
+    .map((c) => (c.kind === 'lightning' && pending.has(c.to) ? { ...c, note: 'swap not settled yet' } : c))
+  return {
+    wallet,
+    vaults: [...vaultSet],
+    vaultRecords: vaults,
+    swaps: swapRecords,
+    cosigners: [...new Set(vaults.map((v) => v.cosigner))],
+    classified,
+    spends: toSpendEvents(classified, sinceMs),
+    sinceMs,
+  }
+}
+
+export interface TraceStats {
+  requests: number
+  throttled429: number
+  waitedMs: number
+  loadMs: number
+  /** Addresses skipped because they are final. */
+  skippedFinal: number
+}
+
 export interface TraceOptions {
   network?: Network
   rpc?: RpcClient
+  store?: KvStore
   now?: number
 }
 
-/** Network: discover vaults (recursive, deduped, depth-guarded), read histories, classify. */
-export async function traceWallet(walletAddress: string, sinceDays = 30, opts: TraceOptions = {}): Promise<WalletTrace> {
-  const rpc = opts.rpc ?? createRpcClient(opts.network ?? 'mainnet')
+const defaultStore = createStore()
+
+/** Fetch only rows newer than the cached newest hash; full fetch when uncached or coverage is too short. */
+async function syncAddress(rpc: RpcClient, address: string, rec: AddressRecord | undefined, cutoff: number, now: number): Promise<AddressRecord> {
+  if (rec?.final) return rec
+  if (rec && rec.newestHash && rec.coveredSince <= cutoff) {
+    const fresh: TxRow[] = []
+    let cursor: string | undefined
+    for (let page = 0; page < 40; page++) {
+      const batch = await rpc.getTransactionsByAddress(address, WARM_PAGE_SIZE, cursor)
+      const idx = batch.findIndex((t) => t.hash === rec.newestHash)
+      fresh.push(...(idx >= 0 ? batch.slice(0, idx) : batch).map(toRow))
+      if (idx >= 0 || batch.length < WARM_PAGE_SIZE) break
+      cursor = batch[batch.length - 1].hash
+    }
+    const rows = mergeRows(rec.rows, fresh)
+    return { ...rec, rows, newestHash: rows[0]?.hash ?? null, fetchedAt: now }
+  }
+  const rows = mergeRows([], (await rpc.getTransactionsSince(address, cutoff)).map(toRow)).filter((r) => normalizeTimestamp(r.timestamp) >= cutoff)
+  return { rows, newestHash: rows[0]?.hash ?? null, coveredSince: cutoff, final: false, fetchedAt: now }
+}
+
+/** Network: sync wallet + vault histories through the cache, then build the trace. */
+export async function traceWallet(walletAddress: string, sinceDays = 30, opts: TraceOptions = {}): Promise<WalletTrace & { stats: TraceStats }> {
+  const t0 = Date.now()
+  const network = opts.network ?? 'mainnet'
+  const rpc = opts.rpc ?? createRpcClient(network)
+  const store = opts.store ?? defaultStore
+  const before = { ...rpc.stats }
+  const now = opts.now ?? Date.now()
   const wallet = normalizeAddress(walletAddress)
-  const sinceMs = (opts.now ?? Date.now()) - sinceDays * 24 * 3600 * 1000
+  const sinceMs = now - sinceDays * DAY_MS
   const historyCutoff = sinceMs - VAULT_LOOKBACK_MS
+  const data = loadWalletCache(store, network, wallet)
+  let skippedFinal = 0
 
-  const histories = new Map<string, RpcTransaction[]>()
-  const vaults = new Set<string>()
-  const swapHtlcs = new Set<string>()
-  const queue: { address: string; depth: number }[] = [{ address: wallet, depth: 0 }]
-
-  while (queue.length) {
-    const { address, depth } = queue.shift()!
-    if (histories.has(address)) continue
-    const history = await rpc.getTransactionsSince(address, historyCutoff)
-    histories.set(address, history)
-    for (const tx of history) {
-      // A full page reaches far past the cutoff; vaults created before it can't spend in the window.
-      if (tx.from !== address || tx.toType !== AccountType.Htlc || !tx.executionResult) continue
-      if (normalizeTimestamp(tx.timestamp) < historyCutoff) continue
-      if (isVaultCreation(tx, wallet)) {
-        if (!vaults.has(tx.to) && depth < MAX_VAULT_DEPTH && vaults.size < MAX_VAULTS) {
-          vaults.add(tx.to)
-          queue.push({ address: tx.to, depth: depth + 1 })
-        }
-      } else if (normalizeTimestamp(tx.timestamp) >= sinceMs) {
-        swapHtlcs.add(tx.to)
+  // Sync the wallet, then each vault as discovery reveals it (vaults can fund vaults).
+  const synced = new Set<string>()
+  for (;;) {
+    const { vaults } = discover(wallet, data, historyCutoff)
+    const todo = [wallet, ...vaults.map((v) => v.address)].filter((a) => !synced.has(a))
+    if (!todo.length) break
+    for (const address of todo) {
+      synced.add(address)
+      const rec = data.addresses[address]
+      if (rec?.final) {
+        skippedFinal++
+        continue
       }
+      data.addresses[address] = await syncAddress(rpc, address, rec, historyCutoff, now)
+    }
+  }
+
+  const { vaults, swaps } = discover(wallet, data, historyCutoff)
+  const own = new Set([wallet, ...vaults.map((v) => v.address)])
+
+  // A vault past its timeout with nothing left in it can never move funds again.
+  for (const v of vaults) {
+    const rec = data.addresses[v.address]
+    if (rec && !rec.final && v.timeoutMs < now && rec.rows.some((r) => r.hash === v.fundingHash) && balanceFromRows(v.address, rec.rows) === 0) {
+      data.addresses[v.address] = { ...rec, final: true }
     }
   }
 
   // A swap HTLC that times out (~60h) refunds to its sender (the wallet); that money was never spent.
-  const own = new Set([wallet, ...vaults])
-  const refundedHtlcs = new Set<string>()
-  const pendingHtlcs = new Set<string>()
-  await Promise.all(
-    [...swapHtlcs].map(async (htlc) => {
-      const outs = (await rpc.getTransactionsByAddress(htlc, 20)).filter((t) => t.from === htlc && t.executionResult)
-      if (outs.some((t) => own.has(t.to))) refundedHtlcs.add(htlc)
-      else if (!outs.length) pendingHtlcs.add(htlc)
-    }),
-  )
+  for (const s of swaps) {
+    if (s.createdAt < sinceMs) continue
+    const known = data.swaps[s.address]
+    if (known === 'claimed' || known === 'refunded') continue
+    const outs = (await rpc.getTransactionsByAddress(s.address, 20)).filter((t) => t.from === s.address && t.executionResult)
+    data.swaps[s.address] = outs.some((t) => own.has(t.to)) ? 'refunded' : outs.length ? 'claimed' : 'pending'
+  }
 
-  const classified = classifyTransactions([...histories.values()].flat(), { wallet, vaults, refundedHtlcs })
-    .filter((c) => c.timestamp >= sinceMs)
-    .map((c) => (c.kind === 'lightning' && pendingHtlcs.has(c.to) ? { ...c, note: 'swap not settled yet' } : c))
-  return { wallet, vaults: [...vaults], classified, spends: toSpendEvents(classified, sinceMs), sinceMs }
+  data.updatedAt = now
+  saveWalletCache(store, network, wallet, data)
+  const stats: TraceStats = {
+    requests: rpc.stats.requests - before.requests,
+    throttled429: rpc.stats.throttled429 - before.throttled429,
+    waitedMs: rpc.stats.waitedMs - before.waitedMs,
+    loadMs: Date.now() - t0,
+    skippedFinal,
+  }
+  return { ...buildTrace(wallet, data, sinceMs), stats }
+}
+
+/** Cached view for instant render; null when nothing is cached yet. */
+export function cachedTrace(walletAddress: string, sinceDays = 30, opts: { network?: Network; store?: KvStore; now?: number } = {}): WalletTrace | null {
+  const wallet = normalizeAddress(walletAddress)
+  const data = loadWalletCache(opts.store ?? defaultStore, opts.network ?? 'mainnet', wallet)
+  if (!data.addresses[wallet]) return null
+  return buildTrace(wallet, data, (opts.now ?? Date.now()) - sinceDays * DAY_MS)
 }
 
 export async function getSpending(walletAddress: string, sinceDays = 30, opts: TraceOptions = {}): Promise<SpendEvent[]> {

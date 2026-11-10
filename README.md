@@ -39,11 +39,33 @@ Vaults are found recursively from the wallet's history and from each vault's his
 
 Only `payment` and `lightning` count as spending.
 
-The public RPC (`rpc.nimiqwatch.com`) allows about 20 requests per window. The client caps concurrency at 2 and waits out a 429 before its single retry.
+The public RPC (`rpc.nimiqwatch.com`) allows 20 requests per ~10s window per IP (measured). The client keeps its own budget of 15 requests per 10.5s, caps concurrency at 2, and waits out a 429 before its single retry.
+
+## Cache
+
+`src/chain/cache.ts` wraps localStorage, falling back to memory, under the key `${network}:${wallet}`. It stores compact tx rows and the newest hash for each address, the discovered swap statuses and the excluded/swept spends.
+
+On refresh, each live address is paged with 25 rows at a time only until the cached newest hash appears. Vaults past their timeout whose balance has reached 0 (computed from their full history) are final and are never fetched again. Settled swaps are cached too.
+
+## Prices
+
+- **NIM/USD daily and now:** DefiLlama `coins.llama.fi` (`coingecko:nimiq-2`), with CoinGecko `nimiq-2` as the fallback. The CoinGecko id `nimiq` is a dead 2019 listing.
+- **CRC/GMD:** CoinGecko has no CRC/GMD quotes, so non-USD fiats go through USD × [fawazahmed0 currency-api](https://github.com/fawazahmed0/exchange-api) daily FX snapshots.
+- Every source sends CORS `*`. Prices are cached in the same store.
+- A missing day uses the nearest day's price and is flagged.
+
+## Round-ups
+
+`src/roundup.ts` (pure):
+
+- `roundUp = ceil(fiat/step)×step − fiat`, capped at the payment's own fiat value, then multiplied (×1–×3).
+- `getSweepQuote()` sums pending items and converts them to floored integer luna at the current price.
+
+Run `npx tsx scripts/quote.ts "<NQ address>" CRC` for the full CLI view.
 
 ## Credits
 
-[NimBooks](https://github.com/subimpact/nimbooks) (MIT) was named as a reference for HTLC flows. Spare's vault and HTLC logic was derived from live mainnet data, and no NimBooks code was copied or adapted.
+[NimBooks](https://github.com/subimpact/nimbooks) (MIT) was named as a reference for HTLC flows. Spare's vault and HTLC logic was derived from live mainnet data, and no NimBooks code was copied or adapted. Reading NimBooks' price code is how we learned that `nimiq-2` is the right CoinGecko id and that DefiLlama serves its daily history. Spare's price code is its own.
 
 Built with the official Nimiq `mini-apps` AI skill (`npx skills add nimiq/developer-center --skill mini-apps`).
 

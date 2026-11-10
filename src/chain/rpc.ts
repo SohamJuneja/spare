@@ -83,23 +83,37 @@ export function normalizeTimestamp(ts: number): number {
 
 const MAX_RATE_LIMIT_WAIT_MS = 65_000
 
+export interface RpcStats {
+  requests: number
+  throttled429: number
+  /** Time spent waiting on our own budget or a 429 pause. */
+  waitedMs: number
+}
+
 export interface RpcClientOptions {
   timeoutMs?: number
   /** The public endpoint drops parallel bursts; keep this low. */
   maxConcurrent?: number
+  /** Measured on mainnet: 20 requests per fixed ~10s window per IP. We stay below it. */
+  budget?: { requests: number; windowMs: number }
   fetchImpl?: typeof fetch
+  /** Called with true while requests are held back by the budget or a 429, false when they resume. */
+  onThrottle?: (throttled: boolean) => void
 }
 
 export function createRpcClient(network: Network, opts: RpcClientOptions = {}) {
   const url = RPC_URLS[network]
   const timeoutMs = opts.timeoutMs ?? 15_000
   const maxConcurrent = opts.maxConcurrent ?? 2
+  const budget = opts.budget ?? { requests: 15, windowMs: 10_500 }
   const doFetch = opts.fetchImpl ?? fetch.bind(globalThis)
+  const stats: RpcStats = { requests: 0, throttled429: 0, waitedMs: 0 }
+  const sentAt: number[] = []
   let active = 0
   const waiting: (() => void)[] = []
   let nextId = 1
-  // nimiqwatch allows ~20 requests per window and reports X-Ratelimit-Remaining/-Reset (epoch s).
-  // Browsers may hide these headers (CORS), in which case we only react to 429s.
+  // nimiqwatch reports X-Ratelimit-Remaining/-Reset (epoch s). Browsers hide these headers
+  // (no Access-Control-Expose-Headers), so there we rely on our own budget and on 429s.
   let pausedUntil = 0
 
   function noteRateLimit(res: Response) {
@@ -107,15 +121,27 @@ export function createRpcClient(network: Network, opts: RpcClientOptions = {}) {
     const reset = Number(res.headers.get('x-ratelimit-reset'))
     if (res.headers.has('x-ratelimit-remaining') && remaining <= 0 && reset > 0) pausedUntil = Math.max(pausedUntil, reset * 1000 + 250)
     if (res.status === 429) {
+      stats.throttled429++
       const retryAfter = Number(res.headers.get('retry-after'))
-      const until = reset > 0 ? reset * 1000 + 250 : Date.now() + (retryAfter > 0 ? retryAfter * 1000 : 15_000)
+      const until = reset > 0 ? reset * 1000 + 250 : Date.now() + (retryAfter > 0 ? retryAfter * 1000 : budget.windowMs)
       pausedUntil = Math.max(pausedUntil, Math.min(until, Date.now() + MAX_RATE_LIMIT_WAIT_MS))
     }
   }
 
   async function waitForRateLimit() {
-    const ms = pausedUntil - Date.now()
-    if (ms > 0) await new Promise((r) => setTimeout(r, ms))
+    for (;;) {
+      const now = Date.now()
+      while (sentAt.length && sentAt[0] <= now - budget.windowMs) sentAt.shift()
+      const budgetWait = sentAt.length >= budget.requests ? sentAt[0] + budget.windowMs - now : 0
+      const ms = Math.max(pausedUntil - now, budgetWait)
+      if (ms <= 0) break
+      opts.onThrottle?.(true)
+      stats.waitedMs += ms
+      await new Promise((r) => setTimeout(r, ms))
+      opts.onThrottle?.(false)
+    }
+    sentAt.push(Date.now())
+    stats.requests++
   }
 
   async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
@@ -194,7 +220,7 @@ export function createRpcClient(network: Network, opts: RpcClientOptions = {}) {
     return call<RpcAccount>('getAccountByAddress', [address])
   }
 
-  return { url, getTransactionsByAddress, getTransactionsSince, getAccountByAddress }
+  return { url, stats, getTransactionsByAddress, getTransactionsSince, getAccountByAddress }
 }
 
 export type RpcClient = ReturnType<typeof createRpcClient>
