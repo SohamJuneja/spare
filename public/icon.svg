@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Spare">
+  <rect width="64" height="64" rx="16" fill="#0f6e55"/>
+  <circle cx="29" cy="36" r="16" fill="#f5f2ea"/>
+  <circle cx="29" cy="36" r="10" fill="none" stroke="#0f6e55" stroke-width="3.2"/>
+  <circle cx="46.5" cy="17.5" r="9" fill="#e2643f"/>
+  <path d="M46.5 12.8v9.4M41.8 17.5h9.4" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round"/>
+</svg>

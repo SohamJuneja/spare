@@ -48,6 +48,8 @@ export interface ValidatorRow {
   address: string
   fee: number | null
   payoutType: string
+  /** Free text from the API, e.g. "Every 12 hours" (English only). */
+  payoutSchedule?: string
   isListed: boolean
   score: { total: number; dataStatus: string } | null
 }

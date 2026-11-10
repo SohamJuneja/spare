@@ -3,6 +3,8 @@ import type { VaultRecord } from './chain/cache'
 import type { SwapRecord, TraceStats } from './chain/spending'
 
 export interface Diagnostics {
+  /** Bumped on every update so subscribers re-render on any field change. */
+  rev: number
   sdkInitMs: number | null
   sdkInitError: string | null
   listAccounts: { at: number; result?: string[]; error?: string } | null
@@ -24,6 +26,7 @@ export interface Diagnostics {
 }
 
 export const diag: Diagnostics = {
+  rev: 0,
   sdkInitMs: null,
   sdkInitError: null,
   listAccounts: null,
@@ -43,6 +46,7 @@ export function onDiagnostics(listener: () => void): () => void {
 }
 export function updateDiag(patch: (d: Diagnostics) => void) {
   patch(diag)
+  diag.rev++
   for (const l of listeners) l()
 }
 
