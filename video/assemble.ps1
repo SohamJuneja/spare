@@ -5,12 +5,14 @@
 #
 # Usage (from anywhere):  powershell -ExecutionPolicy Bypass -File video\assemble.ps1
 # Optional: -AssetsDir <dir> -Demo <file> -Out <file>
+#           -NoBed   build without the music bed (only while assets/bed.wav is not available)
 param(
   [string]$AssetsDir = (Join-Path $PSScriptRoot 'assets'),
   [string]$Demo = (Join-Path $PSScriptRoot 'out\demo-core.mp4'),
   [string]$Out = (Join-Path $PSScriptRoot 'out\spare-demo-v2.mp4'),
   [double]$Xfade = 0.3,
-  [double]$BedBelowVoDb = 20
+  [double]$BedBelowVoDb = 20,
+  [switch]$NoBed
 )
 # 'Continue': Windows PowerShell 5.1 turns ffmpeg's normal stderr output into terminating errors under 'Stop'.
 # Failures are caught explicitly below (missing inputs, $LASTEXITCODE).
@@ -20,7 +22,9 @@ $inv = [System.Globalization.CultureInfo]::InvariantCulture
 $Intro = Join-Path $AssetsDir 'intro.mp4'
 $Outro = Join-Path $AssetsDir 'outro.mp4'
 $Bed = Join-Path $AssetsDir 'bed.wav'
-foreach ($f in @($Intro, $Demo, $Outro, $Bed)) {
+$required = @($Intro, $Demo, $Outro)
+if (-not $NoBed) { $required += $Bed }
+foreach ($f in $required) {
   if (-not (Test-Path $f)) { throw "Missing input: $f" }
 }
 
@@ -48,9 +52,13 @@ $off1 = $d0 - $Xfade                 # demo starts here in the final timeline
 $off2 = $off1 + $d1 - $Xfade         # outro starts here
 
 $voLufs = Get-Lufs $Demo
-$bedLufs = Get-Lufs $Bed
-$bedGain = ($voLufs - $BedBelowVoDb) - $bedLufs
-Write-Host ("intro {0}s, demo {1}s, outro {2}s; VO {3} LUFS, bed {4} LUFS -> bed gain {5} dB" -f (F $d0), (F $d1), (F $d2), (F $voLufs), (F $bedLufs), (F $bedGain))
+if ($NoBed) {
+  Write-Host ("intro {0}s, demo {1}s, outro {2}s; VO {3} LUFS; NO BED" -f (F $d0), (F $d1), (F $d2), (F $voLufs))
+} else {
+  $bedLufs = Get-Lufs $Bed
+  $bedGain = ($voLufs - $BedBelowVoDb) - $bedLufs
+  Write-Host ("intro {0}s, demo {1}s, outro {2}s; VO {3} LUFS, bed {4} LUFS -> bed gain {5} dB" -f (F $d0), (F $d1), (F $d2), (F $voLufs), (F $bedLufs), (F $bedGain))
+}
 
 # Normalise every clip to the same video/audio format, padding audio to the clip's video length
 # (or generating silence if a clip has no audio), so xfade/acrossfade line up exactly.
@@ -74,13 +82,19 @@ $parts += "[a01][a2]acrossfade=d=${x}:c1=tri:c2=tri[amain]"
 
 # Bed: only as long as the demo, 1 s fades, placed at the demo's start, mixed without normalisation.
 $delayMs = [int][math]::Round($off1 * 1000)
+if ($NoBed) {
+  $parts += "[amain]anull[a]"
+} else {
 $parts += "[3:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=0:$(F $d1),asetpts=PTS-STARTPTS,volume=$(F $bedGain)dB,afade=t=in:st=0:d=1,afade=t=out:st=$(F ($d1 - 1)):d=1,adelay=${delayMs}|${delayMs}[bed]"
 $parts += "[amain][bed]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]"
+}
 $filter = $parts -join ';'
 
 New-Item -ItemType Directory -Force -Path (Split-Path $Out) | Out-Null
 # -stream_loop on the bed so a short bed still covers the whole demo.
-& ffmpeg -hide_banner -y -i $Intro -i $Demo -i $Outro -stream_loop -1 -i $Bed `
+$inputs = @('-i', $Intro, '-i', $Demo, '-i', $Outro)
+if (-not $NoBed) { $inputs += @('-stream_loop', '-1', '-i', $Bed) }
+& ffmpeg -hide_banner -y @inputs `
   -filter_complex $filter -map '[v]' -map '[a]' `
   -c:v libx264 -crf 20 -preset medium -pix_fmt yuv420p -r 30 `
   -c:a aac -b:a 192k -ar 48000 -movflags +faststart $Out
