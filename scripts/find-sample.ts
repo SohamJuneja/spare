@@ -28,7 +28,11 @@ const head = await rpc.getBlockNumber()
 const vaults = new Set<string>()
 const payees = new Map<string, number>()
 for (let n = head; n > head - blocksToWalk; n--) {
-  const b = await rpc.getBlockByNumber(n)
+  // One bad block must not end the search.
+  const b = await rpc.getBlockByNumber(n).catch((e) => {
+    log(`block ${n}: ${String(e)}`)
+    return { transactions: [] as RpcTransaction[] }
+  })
   for (const t of b.transactions ?? []) {
     if (!isVaultPayment(t)) continue
     vaults.add(t.from)
@@ -53,7 +57,8 @@ for (const c of claimed.slice(0, 25)) {
   const h = await rpc.getTransactionsByAddress(c.from, 10)
   const creation = h.find((t) => t.to === c.from && t.toType === AccountType.Htlc && t.flags === 1)
   const d = creation && decodeHtlcData(creation.recipientData)
-  if (d) owners.add(d.sender)
+  // The hub funds its own HTLCs too (sender = hub): it is the swap service, not a Pay user.
+  if (d && d.sender !== SWAP_HUB) owners.add(d.sender)
 }
 log(`${owners.size} owners from swap-hub claims`)
 for (const v of vaults) {

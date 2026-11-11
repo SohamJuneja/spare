@@ -34,8 +34,18 @@ export const store = createStore()
 export const FIATS: FiatCode[] = ['USD', 'EUR', 'CRC', 'GMD']
 export const fiat: FiatCode = (FIATS as string[]).includes(host.fiat) ? (host.fiat as FiatCode) : 'USD'
 export const WINDOW_DAYS = 30
-/** A real, busy, public Nimiq Pay wallet on mainnet. Shown only as "Sample", never as a person. */
-export const SAMPLE_WALLET = 'NQ51 DE7S FX74 A8BL L7GK EYGB YVPF UK6C 8DXT'
+/**
+ * Real, public Nimiq Pay wallets on mainnet, best first (picked by scripts/find-sample.ts). Shown only as
+ * "Sample", never as a person. If one has no payments in the window, the next one is used.
+ */
+export const SAMPLE_WALLETS = [
+  // 22 ordinary payments of 100–300 NIM + 1 Lightning/swap in the 30 days to Nov 11 2026; quote ≈ 1,117 NIM.
+  'NQ45 57M8 9VMC 16NL 31D0 99M1 YX9Y HC1D NVKU',
+  // 9 payments + 2 Lightning/swap; quote ≈ 1,623 NIM.
+  'NQ20 MJRQ T2E8 3218 9XY3 QAS3 3LGG D7KE 69MU',
+  // Original sample (Lightning/swap only), kept as the last fallback.
+  'NQ51 DE7S FX74 A8BL L7GK EYGB YVPF UK6C 8DXT',
+]
 export const SAMPLE_NETWORK: Network = 'mainnet'
 
 export type Mode = { kind: 'welcome' } | { kind: 'connected'; accounts: ConnectedAccounts } | { kind: 'sample' }
@@ -97,9 +107,10 @@ export function useSpare() {
   const [status, setStatus] = useState<SpendStatusData>({ excluded: [], swept: [] })
   const [sweeps, setSweeps] = useState<SweepRecord[]>([])
   const [sweepUi, setSweepUi] = useState<SweepPhase>({ phase: 'idle' })
+  const [sampleIndex, setSampleIndex] = useState(0)
   setThrottledGlobal = setThrottled
 
-  const wallet = mode.kind === 'connected' ? mode.accounts.walletAddress : mode.kind === 'sample' ? SAMPLE_WALLET : null
+  const wallet = mode.kind === 'connected' ? mode.accounts.walletAddress : mode.kind === 'sample' ? SAMPLE_WALLETS[sampleIndex] : null
   const network: Network = mode.kind === 'sample' ? SAMPLE_NETWORK : host.network
   const rpc = rpcFor(network)
   const runId = useRef(0)
@@ -146,6 +157,11 @@ export function useSpare() {
     setSweeps(loadSweeps(store, network, wallet))
     void loadHistory()
   }, [wallet, network, loadHistory])
+
+  // An empty sample would explain nothing: fall back to the next sample wallet.
+  useEffect(() => {
+    if (mode.kind === 'sample' && historyState === 'ready' && trace?.spends.length === 0 && sampleIndex < SAMPLE_WALLETS.length - 1) setSampleIndex((i) => i + 1)
+  }, [mode.kind, historyState, trace, sampleIndex])
 
   // ---- prices (need the spend days) ----
   const dayList = useMemo(() => (trace ? [...new Set(trace.spends.map((s) => dayKey(s.timestamp)))].sort().join(',') : null), [trace])
