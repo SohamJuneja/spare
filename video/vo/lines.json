@@ -1,0 +1,14 @@
+[
+  { "id": "01", "text": "You meant to save this month. You really did." },
+  { "id": "02", "text": "But every savings app asks you to remember to deposit — and remembering is the first habit to break." },
+  { "id": "03", "text": "Meanwhile, every payment you make leaves a little spare change on the table." },
+  { "id": "04", "text": "Spare catches it. Every Nimiq Pay payment, rounded up and saved into your own stake — in one tap." },
+  { "id": "05", "text": "Spare runs inside Nimiq Pay. Connecting only shares your addresses — Spare can't move a single coin without your approval." },
+  { "id": "06", "text": "It reads the payments you've already made — even across the hidden vaults Nimiq Pay actually pays from — and rounds each one up. Here, twenty-three everyday payments left spare change behind." },
+  { "id": "07", "text": "Every round-up is sized to the payment, and never more than half of it. A Lightning swap that wasn't a purchase? One tap, and it's out." },
+  { "id": "08", "text": "One tap, one approval — and your spare change is in your own NIM stake, earning rewards. Spare never holds your money. There's no backend at all." },
+  { "id": "09", "text": "Want to save faster? Raise the round-up, or turn on a multiplier." },
+  { "id": "10", "text": "And it's real. These are two sweeps made inside Nimiq Pay on testnet — a new stake, then an add-to-stake — matching on-chain to the last luna. Open source, in English and Spanish." },
+  { "id": "11", "text": "Spend like you always do. Spare saves the change." },
+  { "id": "12", "text": "Try Spare in Nimiq Pay today." }
+]

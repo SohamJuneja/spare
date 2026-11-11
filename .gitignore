@@ -27,3 +27,12 @@ dist-ssr
 .claude/
 
 .vercel
+
+# Demo video project: generated media, deps and renders stay out of git
+video/node_modules/
+video/out/
+video/frames/
+video/clips/
+video/public/clips/
+video/public/vo/
+video/vo/*.mp3

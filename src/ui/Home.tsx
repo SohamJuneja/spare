@@ -158,7 +158,8 @@ function SweepAction({ s }: { s: Spare }) {
       <button className="btn" onClick={() => void s.sweep('quote')} disabled={disabled}>
         {label}
       </button>
-      {s.route.kind === 'new' && !s.pool && <p className="explainer">{t('error.noPool')}</p>}
+      {/* Only a real failure is an error; while pools load, the button simply waits. */}
+      {s.route.kind === 'new' && !s.pool && s.validatorsError && <p className="explainer">{t('error.noPool')}</p>}
       {!s.gate.ok && <p className="explainer">{t('sweep.blocked')}</p>}
       {s.partial && <p className="explainer">{t('partial.note', { n: s.partial.items.length, total: s.quote?.items.length ?? 0 })}</p>}
       <p className="explainer">{t('home.explainer', { min: unstake.min, max: unstake.max })}</p>

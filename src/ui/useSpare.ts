@@ -108,6 +108,7 @@ export function useSpare() {
   const [sweeps, setSweeps] = useState<SweepRecord[]>([])
   const [sweepUi, setSweepUi] = useState<SweepPhase>({ phase: 'idle' })
   const [sampleIndex, setSampleIndex] = useState(0)
+  const [validatorsError, setValidatorsError] = useState(false)
   setThrottledGlobal = setThrottled
 
   const wallet = mode.kind === 'connected' ? mode.accounts.walletAddress : mode.kind === 'sample' ? SAMPLE_WALLETS[sampleIndex] : null
@@ -184,12 +185,27 @@ export function useSpare() {
   // ---- validators (pool list; also shown in the sample) ----
   useEffect(() => {
     if (!wallet) return
-    fetchValidators(network, store)
-      .then((rows) => {
-        setValidators(rows)
-        setSettingsState((s) => (s.pool && rows.some((r) => r.address === s.pool) ? s : { ...s, pool: pickDefaultValidator(rows)?.address ?? null }))
-      })
-      .catch((e) => updateDiag((d) => d.errors.push({ at: Date.now(), message: `validators: ${String(e)}` })))
+    // Retry a few times: the validators API can be slow or briefly down, and a first stake needs a pool.
+    let alive = true
+    setValidatorsError(false)
+    void (async () => {
+      for (let attempt = 0; attempt < 4 && alive; attempt++) {
+        try {
+          const rows = await fetchValidators(network, store)
+          if (!alive) return
+          setValidators(rows)
+          setSettingsState((s) => (s.pool && rows.some((r) => r.address === s.pool) ? s : { ...s, pool: pickDefaultValidator(rows)?.address ?? null }))
+          return
+        } catch (e) {
+          updateDiag((d) => d.errors.push({ at: Date.now(), message: `validators (attempt ${attempt + 1}): ${String(e)}` }))
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)))
+        }
+      }
+      if (alive) setValidatorsError(true)
+    })()
+    return () => {
+      alive = false
+    }
   }, [wallet, network])
 
   // ---- balance + staker (connected only; read-only, no dialog) ----
@@ -356,6 +372,7 @@ export function useSpare() {
     infoError,
     retryInfo: loadInfo,
     validators,
+    validatorsError,
     pool,
     settings,
     setSettings,

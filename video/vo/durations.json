@@ -1,0 +1,62 @@
+[
+  {
+    "id": "01",
+    "text": "You meant to save this month. You really did.",
+    "duration": 2.592
+  },
+  {
+    "id": "02",
+    "text": "But every savings app asks you to remember to deposit — and remembering is the first habit to break.",
+    "duration": 6.912
+  },
+  {
+    "id": "03",
+    "text": "Meanwhile, every payment you make leaves a little spare change on the table.",
+    "duration": 4.512
+  },
+  {
+    "id": "04",
+    "text": "Spare catches it. Every Nimiq Pay payment, rounded up and saved into your own stake — in one tap.",
+    "duration": 6.624
+  },
+  {
+    "id": "05",
+    "text": "Spare runs inside Nimiq Pay. Connecting only shares your addresses — Spare can't move a single coin without your approval.",
+    "duration": 7.848
+  },
+  {
+    "id": "06",
+    "text": "It reads the payments you've already made — even across the hidden vaults Nimiq Pay actually pays from — and rounds each one up. Here, twenty-three everyday payments left spare change behind.",
+    "duration": 11.712
+  },
+  {
+    "id": "07",
+    "text": "Every round-up is sized to the payment, and never more than half of it. A Lightning swap that wasn't a purchase? One tap, and it's out.",
+    "duration": 7.776
+  },
+  {
+    "id": "08",
+    "text": "One tap, one approval — and your spare change is in your own NIM stake, earning rewards. Spare never holds your money. There's no backend at all.",
+    "duration": 9.648
+  },
+  {
+    "id": "09",
+    "text": "Want to save faster? Raise the round-up, or turn on a multiplier.",
+    "duration": 4.08
+  },
+  {
+    "id": "10",
+    "text": "And it's real. These are two sweeps made inside Nimiq Pay on testnet — a new stake, then an add-to-stake — matching on-chain to the last luna. Open source, in English and Spanish.",
+    "duration": 11.76
+  },
+  {
+    "id": "11",
+    "text": "Spend like you always do. Spare saves the change.",
+    "duration": 3.24
+  },
+  {
+    "id": "12",
+    "text": "Try Spare in Nimiq Pay today.",
+    "duration": 1.968
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "name": "spare-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "remotion render src/index.ts SpareDemo out/spare-demo.mp4 --codec=h264 --audio-codec=aac"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.543",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.543",
+    "typescript": "^5.9.3"
+  }
+}
