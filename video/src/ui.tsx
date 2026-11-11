@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { Easing, Freeze, interpolate, OffthreadVideo, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
+import { Easing, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion'
 import { C, FONT } from './timeline'
 
 export const ease = Easing.bezier(0.16, 1, 0.3, 1)
@@ -80,21 +80,19 @@ export function Phone({ children, style }: { children: ReactNode; style?: CSSPro
   )
 }
 
+/** Frames pre-extracted at 30 fps by video/extract-frames (the app clip already cropped to its 390×844 page). */
+const FRAME_COUNT: Record<string, number> = { app: 1148, proof1: 430, proof2: 430 }
+
 /**
  * Shows the recording at an exact clip time (seconds), so scenes can hold or slice freely.
- * `cornerHalf`: Playwright drew the 390×844 page in the top-left quarter of the 780×1688 recording
- * (deviceScaleFactor 2), so we show only that quarter.
+ * Uses still frames instead of <Freeze><OffthreadVideo>, which returned wrong frames late in the clip.
  */
-export function ClipFrame({ src, time, cornerHalf = false }: { src: string; time: number; cornerHalf?: boolean }) {
+export function ClipFrame({ src, time }: { src: string; time: number; cornerHalf?: boolean }) {
+  const name = src.replace(/^clips\//, '').replace(/\.(mp4|webm)$/, '')
+  const n = Math.min(FRAME_COUNT[name] - 1, Math.max(0, Math.round(time * 30)))
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-      <Freeze frame={Math.max(0, Math.round(time * 30))}>
-        <OffthreadVideo
-          src={staticFile(src)}
-          muted
-          style={cornerHalf ? { position: 'absolute', left: 0, top: 0, width: '200%', height: '200%', display: 'block' } : { width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        />
-      </Freeze>
+      <Img src={staticFile(`clips/${name}/${String(n).padStart(5, '0')}.jpg`)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
     </div>
   )
 }

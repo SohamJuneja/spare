@@ -4,8 +4,8 @@ import markersJson from './markers.json'
 import { C, FONT, FPS } from './timeline'
 import { ApprovedChip, BrandBg, ClipFrame, DemoLabel, ease, Mark, Phone, SCREEN_H, SCREEN_W, SideTitle, TapRing, useSpring } from './ui'
 
-const M = markersJson.markers as Record<string, number>
-const B = markersJson.boxes as Record<string, { x: number; y: number; w: number; h: number }>
+export const M = markersJson.markers as Record<string, number>
+export const B = markersJson.boxes as Record<string, { x: number; y: number; w: number; h: number }>
 const sec = (frame: number) => frame / FPS
 const clampI = (v: number, a: number[], b: number[]) => interpolate(v, a, b, { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: ease })
 
@@ -273,7 +273,7 @@ export function DemoScene({ step, title, sub, clipAt, camera = [[0, 1, 422]], ta
       <div style={{ position: 'absolute', left: 960 - (SCREEN_W + 24) / 2 + 120, top: 40, width: SCREEN_W + 24, height: phoneH, opacity: enter, transform: `translateY(${(1 - enter) * 30}px)` }}>
         <div style={{ transform: `scale(${scale})`, transformOrigin: `50% ${originY}px` }}>
           <Phone>
-            <ClipFrame src="clips/app.webm" time={clipAt(t)} cornerHalf />
+            <ClipFrame src="clips/app.mp4" time={clipAt(t)} cornerHalf />
             {taps.map((tp, i) => (
               <TapRing key={i} box={B[tp.box]} atFrame={Math.round(tp.at * FPS)} />
             ))}
@@ -287,7 +287,7 @@ export function DemoScene({ step, title, sub, clipAt, camera = [[0, 1, 422]], ta
 }
 
 /** Hold `holdUntil` scene-seconds on clip `a`, then play realtime (×rate) from a to b, then hold b. */
-const play =
+export const play =
   (a: number, b: number, startAt = 0, rate = 1) =>
   (t: number) =>
     t < startAt ? a : Math.min(b, a + (t - startAt) * rate)
@@ -405,7 +405,7 @@ export function S09() {
   )
 }
 
-function BrowserWindow({ src, time, label, local }: { src: string; time: number; label: string; local: number }) {
+export function BrowserWindow({ src, time, label, local }: { src: string; time: number; label: string; local: number }) {
   const enter = clampI(local, [0, 0.5], [0, 1])
   // Zoomed from the first frame so the explorer's own header logo is never on screen; a slow push-in only.
   const zoom = clampI(local, [0, 8], [1.42, 1.5])
@@ -455,7 +455,7 @@ export function S10() {
   return (
     <BrandBg>
       <BrowserWindow
-        src={second ? 'clips/proof2.webm' : 'clips/proof1.webm'}
+        src={second ? 'clips/proof2.mp4' : 'clips/proof1.mp4'}
         time={9 + (t - (second ? p2 : p1)) * 0.25}
         local={t - (second ? p2 : p1)}
         label={second ? 'Real sweep #2 · add to stake · 747.25669 NIM' : 'Real sweep #1 · new stake · 266.55895 NIM'}

@@ -36,3 +36,6 @@ video/clips/
 video/public/clips/
 video/public/vo/
 video/vo/*.mp3
+video/vo2/*.mp3
+video/assets/*.mp4
+video/assets/*.wav

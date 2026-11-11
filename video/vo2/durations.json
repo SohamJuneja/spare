@@ -1,0 +1,32 @@
+[
+  {
+    "id": "D1",
+    "text": "Here's Spare, live inside Nimiq Pay. Tap Connect. Spare only sees your addresses — it can't move a single coin without you.",
+    "duration": 8.26
+  },
+  {
+    "id": "D2",
+    "text": "Instantly, it finds every payment you've made — even through the hidden vaults Nimiq Pay pays from — and rounds each one up. Twenty-three everyday payments. And there's your spare change, waiting.",
+    "duration": 9.747
+  },
+  {
+    "id": "D3",
+    "text": "Every round-up is fair: sized to the payment, never more than half of it. Not a real purchase? One tap, and it's out.",
+    "duration": 7.614
+  },
+  {
+    "id": "D4",
+    "text": "Now the good part. One tap. One approval. Done. Your spare change is staked in your own wallet, earning rewards. No custody. No backend.",
+    "duration": 9.507
+  },
+  {
+    "id": "D5",
+    "text": "Want to save faster? Raise the round-up, or turn on a multiplier.",
+    "duration": 4.165
+  },
+  {
+    "id": "D6",
+    "text": "And it works for real. Two sweeps we made inside Nimiq Pay on testnet — a new stake, then a top-up — matching on-chain to the last luna.",
+    "duration": 7.782
+  }
+]
