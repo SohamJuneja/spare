@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import type { WalletCacheData } from '../src/chain/cache'
 import { withRewards, type IncomingTx } from '../src/chain/income'
 import { buildTrace, type SpendEvent } from '../src/chain/spending'
-import { buildIncomeItems, incomeTotal, nextIncomeRule, RULE_OFF, toggleCounted } from '../src/income-rule'
+import { buildIncomeItems, incomeTotal, nextIncomeRule, previewSlices, RULE_OFF, toggleCounted } from '../src/income-rule'
 import { buildRoundUps, getSweepQuote } from '../src/roundup'
 import { pickAffordable, savedWithSpare, splitItemsLuna, sweepBreakdown, type SweepRecord } from '../src/sweep'
 import { breakdownText } from '../src/ui/breakdown'
@@ -181,5 +181,38 @@ describe('sample "would have saved" on real wallets', () => {
     const would = incomeTotal(items)
     expect(would.count).toBe(n)
     expect(would.fiat).toBeCloseTo(nim * 0.0004 * 0.05, 6)
+  })
+})
+
+describe('personal slice preview (connected, rule off)', () => {
+  const windowStart = day('2026-10-14')
+
+  it('totals what the selected % would have saved over the window; 0% previews 5%', () => {
+    // a ($100) + b ($2) + before ($100); the reward stays out by default, own/unstake/swap never count.
+    expect(previewSlices(incoming, table, 0.05, windowStart)).toEqual({ pct: 0.05, fiat: 10.1, count: 3 })
+    expect(previewSlices(incoming, table, 0.1, windowStart)).toEqual({ pct: 0.1, fiat: 20.2, count: 3 })
+    expect(previewSlices(incoming, table, 0, windowStart)).toEqual({ pct: 0.05, fiat: 10.1, count: 3 })
+  })
+
+  it('honours "Not counted" marks and counted rewards', () => {
+    expect(previewSlices(incoming, table, 0.05, windowStart, { excluded: ['a'], included: ['reward'] })).toEqual({ pct: 0.05, fiat: 5.15, count: 3 })
+  })
+
+  it('no received payments → count 0 (the "Once you receive a payment" message)', () => {
+    expect(previewSlices(incoming.filter((i) => i.kind !== 'received'), table, 0.05, windowStart)).toEqual({ pct: 0.05, fiat: 0, count: 0 })
+  })
+
+  it('is never part of the quote: with the rule off, only round-ups are sweepable', () => {
+    const spend: SpendEvent = { hash: 'p', timestamp: day('2026-11-02'), valueLuna: 1_000_000, recipient: 'x', kind: 'payment', from: 'y' }
+    const roundUps = buildRoundUps([spend], table, { maxStep: 1, multiplier: 1 }, none)
+    const live = buildIncomeItems(incoming, table, RULE_OFF, none)
+    const preview = previewSlices(incoming, table, 0.05, windowStart)
+    expect(preview.fiat).toBeGreaterThan(0)
+    expect(live).toEqual([])
+    const q = getSweepQuote('USD', [...roundUps, ...live], { price: 0.25, time: 1 })
+    expect(q.items.map((i) => i.kind)).toEqual(['payment'])
+    expect(q.fiatTotal).toBe(0.5)
+    // Totals only: nothing with a hash that could be picked or locked by a sweep.
+    expect(Object.keys(preview).sort()).toEqual(['count', 'fiat', 'pct'])
   })
 })

@@ -5,7 +5,7 @@ import { withRewards } from '../chain/income'
 import { createRpcClient, type Network, type RpcClient } from '../chain/rpc'
 import { cachedTrace, traceWallet, type WalletTrace } from '../chain/spending'
 import { updateDiag } from '../diagnostics'
-import { buildIncomeItems, isIncomePct, nextIncomeRule, RULE_OFF, SUGGESTED_PCT, toggleCounted, type IncomePct, type IncomeRule } from '../income-rule'
+import { buildIncomeItems, isIncomePct, nextIncomeRule, previewSlices, RULE_OFF, SUGGESTED_PCT, toggleCounted, type IncomePct, type IncomeRule } from '../income-rule'
 import { connect, getBalances, getHost, getProvider, onAccountsChanged, type ConnectedAccounts } from '../nimiq/host'
 import { dayKey, getPriceTable, type FiatCode, type PriceTable } from '../prices'
 import { minimumProgress, newSinceLastSweep, weekStreak } from '../progress'
@@ -326,6 +326,14 @@ export function useSpare() {
           : null,
     [incoming, table, incomeReady, rule, status.excluded, status.included, marks, locked],
   )
+  /** Connected only, preview only: totals over the whole window, never items, so never in the quote. */
+  const incomePreview = useCallback(
+    (pct: IncomePct) =>
+      mode.kind === 'connected' && incoming && table && incomeReady && trace
+        ? previewSlices(incoming, table, pct, trace.sinceMs, { excluded: status.excluded, included: status.included })
+        : null,
+    [mode.kind, incoming, table, incomeReady, trace, status.excluded, status.included],
+  )
   // The sample's slices are hypothetical ("would have saved"), so they never join its quote.
   const quoteItems = useMemo(() => (items ? [...items, ...(sample ? [] : (incomeItems ?? []))] : null), [items, incomeItems, sample])
   const quote = useMemo(() => (quoteItems && table ? getSweepQuote(fiat, quoteItems, table.current) : null), [quoteItems, table])
@@ -452,6 +460,7 @@ export function useSpare() {
     items,
     incomeItems,
     incomeRule: rule,
+    incomePreview,
     setIncomePct,
     whatsNewDismissed,
     dismissWhatsNew,

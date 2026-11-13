@@ -3,6 +3,7 @@ import { lang, t, type StringKey } from '../i18n'
 import { INCOME_PCTS } from '../income-rule'
 import { STEPS, type Multiplier } from '../roundup'
 import { Diagnostics } from './Diagnostics'
+import { IncomePreview } from './Home'
 import { fiat, type Spare } from './useSpare'
 
 export function Settings({ s }: { s: Spare }) {
@@ -45,6 +46,7 @@ export function Settings({ s }: { s: Spare }) {
           ))}
         </div>
         <p className="small-text muted">{s.mode.kind === 'sample' ? t('settings.incomeSample') : t('settings.incomeHint')}</p>
+        <IncomePreview s={s} pct={s.incomeRule.pct} />
       </section>
 
       <section className="card">

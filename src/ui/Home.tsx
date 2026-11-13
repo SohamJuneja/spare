@@ -1,5 +1,5 @@
-import { fmtDate, fmtFiat, fmtNim, fmtPercent } from '../format'
-import { incomeTotal, SUGGESTED_PCT } from '../income-rule'
+import { fmtDate, fmtFiat, fmtFiatAtLeast, fmtNim, fmtPercent } from '../format'
+import { incomeTotal, SUGGESTED_PCT, type IncomePct } from '../income-rule'
 import { lang, t, tn } from '../i18n'
 import { unstakeWindowHours } from '../progress'
 import { fiat, host, openInPayLink, WINDOW_DAYS, type Spare } from './useSpare'
@@ -210,6 +210,7 @@ function IncomeCard({ s }: { s: Spare }) {
     <section className="card">
       <h3>{t('income.promptTitle')}</h3>
       <p className="small-text muted">{t('income.promptBody')}</p>
+      <IncomePreview s={s} pct={SUGGESTED_PCT} />
       <button className="btn" onClick={() => s.setIncomePct(SUGGESTED_PCT)}>
         {t('income.turnOn')}
       </button>
@@ -217,6 +218,19 @@ function IncomeCard({ s }: { s: Spare }) {
         {t('income.notNow')}
       </button>
     </section>
+  )
+}
+
+/** "Over the last 30 days, keeping 5% … would have saved …": the wallet's own numbers, never sweepable. */
+export function IncomePreview({ s, pct }: { s: Spare; pct: IncomePct }) {
+  const p = s.incomePreview(pct)
+  if (!p) return null
+  return (
+    <p className="small-text">
+      {p.count === 0
+        ? t('income.previewNone')
+        : tn('income.preview', p.count, { days: WINDOW_DAYS, pct: fmtPercent(p.pct, lang), amount: fmtFiatAtLeast(p.fiat, fiat, lang) })}
+    </p>
   )
 }
 

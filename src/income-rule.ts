@@ -95,6 +95,23 @@ export function toggleCounted<T extends { excluded: string[]; included?: string[
   return defaultExcluded ? { ...status, included: flip(status.included ?? []) } : { ...status, excluded: flip(status.excluded) }
 }
 
+/**
+ * Preview only: what keeping `pct` of everything received since `windowStart` would have saved. Returns totals,
+ * never items, so it can't reach a quote or a sweep. Honours "Not counted" marks and leaves rewards out by default.
+ * A pct of 0 previews the suggested 5%.
+ */
+export function previewSlices(
+  incoming: IncomingTx[],
+  table: Pick<PriceTable, 'daily' | 'approxDays'>,
+  pct: IncomePct,
+  windowStart: number,
+  status: { excluded: Iterable<string>; included?: Iterable<string> } = { excluded: [] },
+): { pct: IncomePct; fiat: number; count: number } {
+  const p = pct > 0 ? pct : SUGGESTED_PCT
+  const items = buildIncomeItems(incoming, table, { pct: p, since: windowStart }, { ...status, swept: [] })
+  return { pct: p, ...incomeTotal(items) }
+}
+
 /** Sum of what pending slices add, in fiat (for the sample's "would have saved"). */
 export function incomeTotal(items: IncomeItem[]): { fiat: number; count: number } {
   const pending = items.filter((i) => i.status === 'pending' && i.saved > 0)
