@@ -52,12 +52,18 @@ export function HowItWorks({ onBack }: { onBack: () => void }) {
       </section>
 
       <section className="card">
+        <h3>{t('how.incomeTitle')}</h3>
+        <p>{t('how.income')}</p>
+      </section>
+
+      <section className="card">
         <h3>{t('how.limitsTitle')}</h3>
         <ul>
           <li>{t('how.limit1')}</li>
           <li>{t('how.limit2')}</li>
           <li>{t('how.limit3')}</li>
           <li>{t('how.limit4', { min: u.min, max: u.max })}</li>
+          <li>{t('how.limit5')}</li>
         </ul>
       </section>
 

@@ -96,12 +96,16 @@ export interface WalletCacheData {
   vaults: VaultRecord[]
   addresses: Record<string, AddressRecord>
   swaps: Record<string, SwapStatus>
+  /** v1.1: creation data of foreign HTLCs that paid in (immutable, so cached forever). Absent in older caches. */
+  htlcOrigins?: Record<string, { sender: string; recipient: string; vault: boolean } | null>
   updatedAt: number
 }
 
 export interface SpendStatusData {
   excluded: string[]
   swept: string[]
+  /** v1.1: items that are left out by default (staking rewards) but the user chose to count. */
+  included?: string[]
 }
 
 export const walletKey = (network: Network, wallet: string) => `${network}:${wallet}`

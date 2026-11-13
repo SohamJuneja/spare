@@ -1,6 +1,8 @@
-import { fmtDate, fmtDateTime, fmtFiat, fmtNim } from '../format'
+import { fmtDate, fmtDateTime, fmtFiat, fmtFiatAtLeast, fmtNim, fmtPercent } from '../format'
 import { lang, t, type StringKey } from '../i18n'
-import { explorerTx, fiat, type Spare } from './useSpare'
+import { breakdownText } from './breakdown'
+import { explorerTx, fiat, WINDOW_DAYS, type Spare } from './useSpare'
+
 
 export function Activity({ s }: { s: Spare }) {
   const items = s.items ?? []
@@ -50,6 +52,8 @@ export function Activity({ s }: { s: Spare }) {
         )}
       </div>
 
+      <Received s={s} />
+
       <h2>{t('activity.sweeps')}</h2>
       <div className="card">
         {s.sweeps.length === 0 ? (
@@ -65,7 +69,7 @@ export function Activity({ s }: { s: Spare }) {
                   <div className="meta">
                     {fmtDateTime(r.createdAt, lang)} · {t(`sweepStatus.${r.status}` as StringKey)}
                   </div>
-                  {!!r.topUpLuna && <div className="meta">{t('sweep.topUp', { nim: fmtNim(r.topUpLuna, lang) })}</div>}
+                  {breakdownText(r) && <div className="meta">{breakdownText(r)}</div>}
                 </div>
                 {r.txHash && (
                   <a className="btn small secondary" href={explorerTx(s.network, r.txHash)} target="_blank" rel="noreferrer">
@@ -74,6 +78,62 @@ export function Activity({ s }: { s: Spare }) {
                 )}
               </li>
             ))}
+          </ul>
+        )}
+      </div>
+    </>
+  )
+}
+
+function Received({ s }: { s: Spare }) {
+  const sample = s.mode.kind === 'sample'
+  const off = s.incomeRule.pct === 0
+  const items = s.incomeItems
+  return (
+    <>
+      <h2>{t('activity.received')}</h2>
+      {!sample && !off && s.incomeRule.since !== null && (
+        <p className="small-text muted">{t('income.onSince', { pct: fmtPercent(s.incomeRule.pct, lang), date: fmtDate(s.incomeRule.since, lang) })}</p>
+      )}
+      {items?.some((i) => i.source === 'reward') && <p className="small-text muted">{t('activity.rewardHint')}</p>}
+      <div className="card">
+        {off ? (
+          <p className="muted">{t('activity.receivedOff')}</p>
+        ) : !items ? (
+          [0, 1].map((k) => <div key={k} className="skeleton" style={{ height: 44, margin: '10px 0' }} />)
+        ) : items.length === 0 ? (
+          <p className="muted">{sample ? t('activity.receivedNoneSample', { days: WINDOW_DAYS }) : t('activity.receivedNone')}</p>
+        ) : (
+          <ul className="list">
+            {[...items]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .map((i) => {
+                const sweeping = s.locked.has(i.hash) && !s.marks.has(i.hash)
+                const statusText = sample ? t('activity.wouldHave') : t(sweeping ? 'status.sweeping' : (`status.${i.status}` as StringKey))
+                return (
+                  <li key={i.hash} className={`row${i.status === 'excluded' ? ' dim' : ''}`}>
+                    <div className="main">
+                      <div className="title">{i.source === 'reward' ? t('activity.reward') : t('activity.receivedPayment')}</div>
+                      <div className="meta">
+                        {fmtDate(i.timestamp, lang)} · {fmtNim(i.valueLuna, lang)} NIM · {fmtFiatAtLeast(i.fiatAtTime, fiat, lang)}
+                        {i.priceApproximate ? ` · ${t('activity.approx')}` : ''}
+                      </div>
+                      {i.message && <div className="meta message">“{i.message}”</div>}
+                      <div className="meta">
+                        {t('activity.slice', { pct: fmtPercent(i.pct, lang) })} · {statusText}
+                      </div>
+                    </div>
+                    <div className="amt">
+                      <div className="ru">+{fmtFiatAtLeast(i.saved, fiat, lang)}</div>
+                      {!sample && i.status !== 'swept' && !s.locked.has(i.hash) && (
+                        <button className="toggle" onClick={() => s.toggleExcluded(i.hash, i.source === 'reward')} aria-pressed={i.status === 'excluded'}>
+                          {i.status === 'excluded' ? t('activity.include') : t('activity.notCounted')}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
           </ul>
         )}
       </div>

@@ -11,6 +11,11 @@ export function fmtFiat(amount: number, fiat: FiatCode, lang: Lang): string {
   return new Intl.NumberFormat(locale(lang, fiat), { style: 'currency', currency: fiat, minimumFractionDigits: Math.min(2, digits), maximumFractionDigits: digits }).format(amount)
 }
 
+/** Like fmtFiat, but a positive amount too small to show reads "<$0.0001" instead of "$0.00". */
+export function fmtFiatAtLeast(amount: number, fiat: FiatCode, lang: Lang): string {
+  return amount > 0 && amount < 0.0001 ? `<${fmtFiat(0.0001, fiat, lang)}` : fmtFiat(amount, fiat, lang)
+}
+
 export function fmtNim(luna: number, lang: Lang, maxDigits = 2): string {
   const nim = luna / 1e5
   const digits = nim !== 0 && Math.abs(nim) < 1 ? 5 : maxDigits

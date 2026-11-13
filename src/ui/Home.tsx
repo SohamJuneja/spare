@@ -1,4 +1,5 @@
-import { fmtDate, fmtFiat, fmtNim } from '../format'
+import { fmtDate, fmtFiat, fmtNim, fmtPercent } from '../format'
+import { incomeTotal, SUGGESTED_PCT } from '../income-rule'
 import { lang, t, tn } from '../i18n'
 import { unstakeWindowHours } from '../progress'
 import { fiat, host, openInPayLink, WINDOW_DAYS, type Spare } from './useSpare'
@@ -9,13 +10,29 @@ export function Home({ s, onHow }: { s: Spare; onHow: () => void }) {
   const sample = s.mode.kind === 'sample'
   const pending = s.quote?.items ?? []
   const oldest = pending.length ? Math.min(...pending.map((i) => i.timestamp)) : null
-  const noPayments = s.trace && s.trace.spends.length === 0
+  const nPayments = pending.filter((i) => i.kind !== 'income').length
+  const nReceived = pending.length - nPayments
+  const receivedNow = !sample && (s.incomeItems?.length ?? 0) > 0
+  const noPayments = s.trace && s.trace.spends.length === 0 && !receivedNow
   const loadingFirst = !s.trace && s.historyState !== 'error'
 
   return (
     <>
       {s.historyState === 'error' && (
         <ErrorNotice text={t('error.history')} action={t('action.retry')} onAction={() => void s.retryHistory()} />
+      )}
+
+      {!s.whatsNewDismissed && (
+        <div className="notice whats-new">
+          <span className="grow">
+            <strong>{t('whatsNew.title')}</strong>
+            <br />
+            {t('whatsNew.body')}
+          </span>
+          <button className="toggle" onClick={s.dismissWhatsNew} aria-label={t('whatsNew.dismiss')}>
+            ✕
+          </button>
+        </div>
       )}
 
       {noPayments ? (
@@ -44,7 +61,13 @@ export function Home({ s, onHow }: { s: Spare; onHow: () => void }) {
             <>
               <div className="big">{fmtFiat(s.quote.fiatTotal, fiat, lang)}</div>
               <div className="small">{fmtNim(s.quote.luna, lang)} NIM</div>
-              {oldest !== null && <div className="sub">{tn('home.fromPayments', pending.length, { date: fmtDate(oldest, lang) })}</div>}
+              {oldest !== null && (
+                <div className="sub">
+                  {nPayments === 0
+                    ? tn('home.fromReceived', nReceived, { date: fmtDate(oldest, lang) })
+                    : `${tn('home.fromPayments', nPayments, { date: fmtDate(oldest, lang) })}${nReceived ? ` ${tn('home.andReceived', nReceived)}` : ''}`}
+                </div>
+              )}
               <SweepAction s={s} />
             </>
           )}
@@ -57,6 +80,8 @@ export function Home({ s, onHow }: { s: Spare; onHow: () => void }) {
       {s.infoError && <ErrorNotice text={t('error.balance')} action={t('action.retry')} onAction={() => void s.retryInfo()} />}
 
       {s.minimum && s.quote && s.quote.luna > 0 && <MinimumCard s={s} />}
+
+      <IncomeCard s={s} />
 
       {/* Primary stat comes from the chain, so it is right on any device. */}
       <section className="card stake-card">
@@ -164,6 +189,34 @@ function SweepAction({ s }: { s: Spare }) {
       {s.partial && <p className="explainer">{t('partial.note', { n: s.partial.items.length, total: s.quote?.items.length ?? 0 })}</p>}
       <p className="explainer">{t('home.explainer', { min: unstake.min, max: unstake.max })}</p>
     </>
+  )
+}
+
+/** Connected with the rule off: the turn-on prompt. Sample: what it would have saved. */
+function IncomeCard({ s }: { s: Spare }) {
+  if (s.mode.kind === 'sample') {
+    if (!s.incomeItems || s.incomeRule.pct === 0 || !s.trace) return null
+    const would = incomeTotal(s.incomeItems)
+    if (!would.count) return null
+    return (
+      <section className="card">
+        <h3>{t('income.wouldTitle', { pct: fmtPercent(s.incomeRule.pct, lang), amount: fmtFiat(would.fiat, fiat, lang) })}</h3>
+        <p className="small-text muted">{tn('income.wouldBody', would.count, { days: WINDOW_DAYS })}</p>
+      </section>
+    )
+  }
+  if (s.mode.kind !== 'connected' || s.incomeRule.pct > 0 || s.incomePromptDismissed) return null
+  return (
+    <section className="card">
+      <h3>{t('income.promptTitle')}</h3>
+      <p className="small-text muted">{t('income.promptBody')}</p>
+      <button className="btn" onClick={() => s.setIncomePct(SUGGESTED_PCT)}>
+        {t('income.turnOn')}
+      </button>
+      <button className="btn ghost" onClick={s.dismissIncomePrompt}>
+        {t('income.notNow')}
+      </button>
+    </section>
   )
 }
 

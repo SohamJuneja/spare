@@ -46,12 +46,21 @@ export interface RoundUpItem {
   status: SpendStatus
 }
 
-export interface SweepQuote {
+/** What a sweep needs from any quote item: round-ups and (v1.1) income slices. */
+export interface QuoteItem {
+  hash: string
+  timestamp: number
+  kind: string
+  saved: number
+  status: SpendStatus
+}
+
+export interface SweepQuote<T extends QuoteItem = RoundUpItem> {
   fiat: FiatCode
   fiatTotal: number
   nimTotal: number
   luna: number
-  items: RoundUpItem[]
+  items: T[]
   priceUsed: number | null
   priceTime: number | null
 }
@@ -111,8 +120,8 @@ export function buildRoundUps(
   })
 }
 
-/** Sum of pending round-ups, converted at the current price into whole luna (floored). */
-export function getSweepQuote(fiat: FiatCode, items: RoundUpItem[], current: { price: number; time: number } | null): SweepQuote {
+/** Sum of pending items (round-ups and slices), converted at the current price into whole luna (floored). */
+export function getSweepQuote<T extends QuoteItem>(fiat: FiatCode, items: T[], current: { price: number; time: number } | null): SweepQuote<T> {
   const pending = items.filter((i) => i.status === 'pending' && i.saved > 0)
   const fiatTotal = round8(pending.reduce((sum, i) => sum + i.saved, 0))
   const luna = current && current.price > 0 ? Math.floor(round8((fiatTotal / current.price) * 1e5)) : 0

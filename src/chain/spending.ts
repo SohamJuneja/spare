@@ -25,6 +25,7 @@ import {
   type VaultRecord,
   type WalletCacheData,
 } from './cache'
+import { classifyIncoming, htlcOriginFromRows, htlcsToLookUp, type IncomingTx } from './income'
 import { AccountType, createRpcClient, normalizeTimestamp, type Network, type RpcClient } from './rpc'
 
 export type TxKind = 'payment' | 'lightning' | 'internal' | 'staking' | 'fee-only' | 'failed'
@@ -152,8 +153,13 @@ export interface WalletTrace {
   cosigners: string[]
   classified: ClassifiedTx[]
   spends: SpendEvent[]
+  /** v1.1: every tx into the wallet or a vault in the window, classified (rewards need withRewards()). */
+  incoming: IncomingTx[]
   sinceMs: number
 }
+
+/** Max foreign HTLC creation lookups per load (each is one request; results are cached forever). */
+const MAX_ORIGIN_LOOKUPS = 20
 
 /** Walk the cached rows: which HTLCs funded by own addresses are vaults, which are swaps. Pure. */
 export function discover(wallet: string, data: WalletCacheData, historyCutoff: number): { vaults: VaultRecord[]; swaps: Omit<SwapRecord, 'status'>[] } {
@@ -205,6 +211,7 @@ export function buildTrace(walletAddress: string, data: WalletCacheData, sinceMs
     cosigners: [...new Set(vaults.map((v) => v.cosigner))],
     classified,
     spends: toSpendEvents(classified, sinceMs),
+    incoming: classifyIncoming(rows, { wallet, vaults: vaultSet, swaps: swapRecords, htlcOrigins: data.htlcOrigins }).filter((i) => i.timestamp >= sinceMs),
     sinceMs,
   }
 }
@@ -296,6 +303,18 @@ export async function traceWallet(walletAddress: string, sinceDays = 30, opts: T
     if (known === 'claimed' || known === 'refunded') continue
     const outs = (await rpc.getTransactionsByAddress(s.address, 20)).filter((t) => t.from === s.address && t.executionResult)
     data.swaps[s.address] = outs.some((t) => own.has(t.to)) ? 'refunded' : outs.length ? 'claimed' : 'pending'
+  }
+
+  // Another Pay user's vault paying in looks like any HTLC: read its creation once to tell it from a swap claim.
+  const rows = [...own].flatMap((a) => data.addresses[a]?.rows ?? [])
+  const lookUp = htlcsToLookUp(rows, { wallet, vaults: own, swaps, htlcOrigins: data.htlcOrigins }, sinceMs).slice(0, MAX_ORIGIN_LOOKUPS)
+  for (const address of lookUp) {
+    try {
+      const origin = htlcOriginFromRows(address, await rpc.getTransactionsByAddress(address, 500))
+      data.htlcOrigins = { ...data.htlcOrigins, [address]: origin }
+    } catch {
+      /* stays unverified (not counted); retried on the next load */
+    }
   }
 
   data.updatedAt = now

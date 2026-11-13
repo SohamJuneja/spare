@@ -1,5 +1,6 @@
 import { fmtFiat, fmtPercent } from '../format'
 import { lang, t, type StringKey } from '../i18n'
+import { INCOME_PCTS } from '../income-rule'
 import { STEPS, type Multiplier } from '../roundup'
 import { Diagnostics } from './Diagnostics'
 import { fiat, type Spare } from './useSpare'
@@ -32,6 +33,18 @@ export function Settings({ s }: { s: Spare }) {
           ))}
         </div>
         <p className="small-text muted">{t('settings.multiplierHint')}</p>
+      </section>
+
+      <section className="card">
+        <h3>{t('settings.income')}</h3>
+        <div className="seg" role="group" aria-label={t('settings.income')}>
+          {INCOME_PCTS.map((pct) => (
+            <button key={pct} aria-pressed={s.incomeRule.pct === pct} onClick={() => s.setIncomePct(pct)}>
+              {pct === 0 ? t('settings.incomeOff') : fmtPercent(pct, lang)}
+            </button>
+          ))}
+        </div>
+        <p className="small-text muted">{s.mode.kind === 'sample' ? t('settings.incomeSample') : t('settings.incomeHint')}</p>
       </section>
 
       <section className="card">

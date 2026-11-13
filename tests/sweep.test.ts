@@ -183,13 +183,13 @@ describe('record state machine', () => {
 
   it('savedWithSpare sums confirmed sweeps only', () => {
     const s = savedWithSpare([{ ...baseRecord, status: 'confirmed' }, { ...baseRecord, id: 'x', status: 'failed' }, { ...baseRecord, id: 'y', status: 'checking' }])
-    expect(s).toEqual({ luna: 18_000_000, topUpLuna: 0, fiatByCode: { USD: 4.5 } })
+    expect(s).toEqual({ luna: 18_000_000, topUpLuna: 0, sliceLuna: 0, fiatByCode: { USD: 4.5 } })
   })
 
   it('a starter top-up is stake but not savings: excluded from Saved with Spare, included in what Spare put in', () => {
     // 30 NIM of round-ups topped up to the 100 NIM minimum.
     const starter: SweepRecord = { ...baseRecord, status: 'confirmed', luna: 10_000_000, topUpLuna: 7_000_000, fiat: 0.0075 }
-    expect(savedWithSpare([starter])).toEqual({ luna: 3_000_000, topUpLuna: 7_000_000, fiatByCode: { USD: 0.0075 } })
+    expect(savedWithSpare([starter])).toEqual({ luna: 3_000_000, topUpLuna: 7_000_000, sliceLuna: 0, fiatByCode: { USD: 0.0075 } })
     // Earned on top subtracts everything Spare staked, top-up included.
     expect(earnedOnTop({ active: 10_050_000, inactive: 0, retired: 0, delegation: null }, [starter])).toEqual({ luna: 50_000, approximate: false })
   })

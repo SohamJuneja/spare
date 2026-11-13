@@ -1,5 +1,6 @@
 // In-memory diagnostics for on-device testing. Rendered by the debug page and copied as plain text.
 import type { VaultRecord } from './chain/cache'
+import type { IncomingTx } from './chain/income'
 import type { SwapRecord, TraceStats } from './chain/spending'
 
 export interface Diagnostics {
@@ -18,6 +19,8 @@ export interface Diagnostics {
     swaps: SwapRecord[]
     cosigners: string[]
     stats: TraceStats
+    /** v1.1: incoming txs in the window, as classified. */
+    incoming?: Pick<IncomingTx, 'hash' | 'from' | 'kind' | 'note' | 'valueLuna'>[]
   } | null
   /** Cumulative over the session, from the RPC client. */
   rpcTotals: { requests: number; throttled429: number; waitedMs: number }
@@ -95,6 +98,10 @@ export function diagnosticsText(host: object): string {
     for (const v of t.vaults) lines.push(`    ${v.address}: ${vaultReason(v)}`)
     lines.push(`  swap HTLCs (${t.swaps.length}) — sender = wallet but real hash lock:`)
     for (const s of t.swaps) lines.push(`    ${s.address}: hub ${s.hub}, funded by ${s.fundedBy} in ${short(s.fundingHash)}, status ${s.status}`)
+    if (t.incoming) {
+      lines.push(`  incoming (${t.incoming.length}):`)
+      for (const i of t.incoming) lines.push(`    ${short(i.hash)} ${i.kind} ${(i.valueLuna / 1e5).toFixed(5)} NIM from ${i.from}: ${i.note}`)
+    }
   } else {
     lines.push('Last trace: none')
   }

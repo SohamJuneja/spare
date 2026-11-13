@@ -13,7 +13,7 @@ import { STAKING_CONTRACT } from './chain/address'
 import type { KvStore, TxRow } from './chain/cache'
 import { normalizeTimestamp, type Network, type RpcClient, type RpcStaker, type RpcTransaction } from './chain/rpc'
 import type { FiatCode } from './prices'
-import type { RoundUpItem } from './roundup'
+import type { QuoteItem } from './roundup'
 
 export const MIN_STAKE_LUNA = 10_000_000
 /** transactionValidityWindow 7200 blocks × 1 s; after this an unseen tx can no longer be included. */
@@ -71,8 +71,8 @@ export function spendableLuna(balances: { wallet: number | null; htlc: number | 
 const toLuna = (fiat: number, price: number) => Math.floor(Math.round((fiat / price) * 1e5 * 1e6) / 1e6)
 
 /** Oldest first, take every pending item that still fits in `spendable`. */
-export function pickAffordable(items: RoundUpItem[], spendable: number, price: number): { items: RoundUpItem[]; luna: number; fiat: number } {
-  const picked: RoundUpItem[] = []
+export function pickAffordable<T extends QuoteItem>(items: T[], spendable: number, price: number): { items: T[]; luna: number; fiat: number } {
+  const picked: T[] = []
   let fiat = 0
   for (const item of [...items].sort((a, b) => a.timestamp - b.timestamp)) {
     if (item.status !== 'pending' || item.saved <= 0) continue
@@ -101,6 +101,8 @@ export interface SweepRecord {
   stakeBefore: number
   /** Part of `luna` that is not round-ups: the starter top-up to reach the 100 NIM minimum. */
   topUpLuna?: number
+  /** v1.1: part of `luna` that came from income slices (the rest, minus any top-up, is round-ups). */
+  sliceLuna?: number
   txHash: string | null
   confirmedAt?: number
   error?: string
@@ -150,18 +152,20 @@ export function findSweepTx(rows: TxRow[], record: SweepRecord, own: Set<string>
   )
 }
 
-/** Round-ups saved in confirmed sweeps. Starter top-ups are real stake but not savings, so they are reported apart. */
-export function savedWithSpare(history: SweepRecord[]): { luna: number; topUpLuna: number; fiatByCode: Partial<Record<FiatCode, number>> } {
+/** Round-ups + slices saved in confirmed sweeps. Starter top-ups are real stake but not savings, so they are reported apart. */
+export function savedWithSpare(history: SweepRecord[]): { luna: number; topUpLuna: number; sliceLuna: number; fiatByCode: Partial<Record<FiatCode, number>> } {
   let luna = 0
   let topUpLuna = 0
+  let sliceLuna = 0
   const fiatByCode: Partial<Record<FiatCode, number>> = {}
   for (const r of history) {
     if (r.status !== 'confirmed') continue
     luna += r.luna - (r.topUpLuna ?? 0)
     topUpLuna += r.topUpLuna ?? 0
+    sliceLuna += r.sliceLuna ?? 0
     fiatByCode[r.fiatCode] = (fiatByCode[r.fiatCode] ?? 0) + r.fiat
   }
-  return { luna, topUpLuna, fiatByCode }
+  return { luna, topUpLuna, sliceLuna, fiatByCode }
 }
 
 /**
@@ -264,6 +268,25 @@ export interface SweepRequest {
   itemHashes: string[]
   stakeBefore: number
   topUpLuna?: number
+  sliceLuna?: number
+}
+
+/**
+ * Split the items' luna between round-ups and slices by their fiat shares, so that
+ * roundUpLuna + sliceLuna = itemsLuna exactly (no luna lost to rounding).
+ */
+export function splitItemsLuna(itemsLuna: number, items: Pick<QuoteItem, 'kind' | 'saved'>[]): { roundUpLuna: number; sliceLuna: number } {
+  const slice = items.filter((i) => i.kind === 'income').reduce((s, i) => s + i.saved, 0)
+  const total = items.reduce((s, i) => s + i.saved, 0)
+  const sliceLuna = total > 0 ? Math.min(itemsLuna, Math.round((itemsLuna * slice) / total)) : 0
+  return { roundUpLuna: itemsLuna - sliceLuna, sliceLuna }
+}
+
+/** How a sweep's luna breaks down, for History: round-ups · slices (· starter top-up). */
+export function sweepBreakdown(r: Pick<SweepRecord, 'luna' | 'topUpLuna' | 'sliceLuna'>): { roundUpLuna: number; sliceLuna: number; topUpLuna: number } {
+  const topUpLuna = r.topUpLuna ?? 0
+  const sliceLuna = r.sliceLuna ?? 0
+  return { roundUpLuna: r.luna - topUpLuna - sliceLuna, sliceLuna, topUpLuna }
 }
 
 export type SweepOutcome = { kind: 'rejected' } | { kind: 'blocked'; reason: string } | { kind: 'record'; record: SweepRecord }

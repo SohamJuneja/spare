@@ -51,9 +51,15 @@ async function run(browser: Browser, scheme: 'light' | 'dark') {
   await page.getByRole('button', { name: 'Activity' }).click()
   await page.locator('.row').first().waitFor()
   await shot(page, `activity-${scheme}`)
+  // v1.1: the Received section sits below the payments list.
+  await page.getByRole('heading', { name: 'Received' }).scrollIntoViewIfNeeded()
+  await page.getByRole('heading', { name: 'Received' }).evaluate((el) => el.scrollIntoView({ block: 'start' }))
+  await shot(page, `activity-received-${scheme}`)
 
   await page.getByRole('button', { name: 'Settings' }).click()
-  await page.locator('select.input option').first().waitFor({ state: 'attached', timeout: 30_000 })
+  await page.evaluate(() => window.scrollTo(0, 0))
+  // The pool picker, or (if the sample wallet stakes by now) the line naming its pool.
+  await page.locator('select.input option').or(page.getByText(/Your stake is with/)).first().waitFor({ state: 'attached', timeout: 30_000 })
   await shot(page, `settings-${scheme}`)
   await ctx.close()
 
@@ -65,6 +71,8 @@ async function run(browser: Browser, scheme: 'light' | 'dark') {
   await p2.getByRole('button', { name: 'Connect Nimiq Pay' }).click()
   const sweepBtn = p2.getByRole('button', { name: /Save into your stake/ })
   await sweepBtn.waitFor({ timeout: 90_000 })
+  // The pool list can take a few seconds (the validators API is slow at times); the button waits for it.
+  await p2.locator('button.btn:enabled', { hasText: 'Save into your stake' }).waitFor({ timeout: 120_000 })
   await shot(p2, `home-connected-${scheme}`)
   await sweepBtn.click()
   await p2.getByRole('heading', { name: 'Saved' }).waitFor({ timeout: 90_000 })

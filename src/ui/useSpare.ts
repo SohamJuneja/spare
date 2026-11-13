@@ -1,9 +1,11 @@
 // One controller for the whole app: data loading, derived numbers, and wallet actions.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createStore, loadSpendStatus, saveSpendStatus, type SpendStatusData } from '../chain/cache'
+import { withRewards } from '../chain/income'
 import { createRpcClient, type Network, type RpcClient } from '../chain/rpc'
 import { cachedTrace, traceWallet, type WalletTrace } from '../chain/spending'
 import { updateDiag } from '../diagnostics'
+import { buildIncomeItems, isIncomePct, nextIncomeRule, RULE_OFF, SUGGESTED_PCT, toggleCounted, type IncomePct, type IncomeRule } from '../income-rule'
 import { connect, getBalances, getHost, getProvider, onAccountsChanged, type ConnectedAccounts } from '../nimiq/host'
 import { dayKey, getPriceTable, type FiatCode, type PriceTable } from '../prices'
 import { minimumProgress, newSinceLastSweep, weekStreak } from '../progress'
@@ -21,6 +23,7 @@ import {
   savedWithSpare,
   settleSweep,
   spendableLuna,
+  splitItemsLuna,
   sweptMarks,
   toStakerInfo,
   type StakerInfo,
@@ -79,6 +82,16 @@ export function rpcFor(network: Network): RpcClient {
 }
 
 const settingsKey = `settings:${fiat}`
+const incomeRuleKey = (network: Network, wallet: string) => `${network}:${wallet}:incomeRule`
+/** Per-device UI flags (not per wallet). */
+const WHATS_NEW_KEY = 'device:whatsNew:v1.1:dismissed'
+const INCOME_PROMPT_KEY = 'device:incomePrompt:dismissed'
+
+/** Off for anyone who hasn't chosen: no back-dated surprises for existing users. */
+function loadIncomeRule(network: Network, wallet: string): IncomeRule {
+  const r = store.get<Partial<IncomeRule>>(incomeRuleKey(network, wallet))
+  return r && isIncomePct(r.pct) && r.pct > 0 && typeof r.since === 'number' ? { pct: r.pct, since: r.since } : RULE_OFF
+}
 function loadSettings(): Settings {
   return { maxStep: DEFAULT_STEP[fiat], multiplier: 1, pool: null, ...store.get<Partial<Settings>>(settingsKey) }
 }
@@ -109,6 +122,11 @@ export function useSpare() {
   const [sweepUi, setSweepUi] = useState<SweepPhase>({ phase: 'idle' })
   const [sampleIndex, setSampleIndex] = useState(0)
   const [validatorsError, setValidatorsError] = useState(false)
+  const [incomeRule, setIncomeRuleState] = useState<IncomeRule>(RULE_OFF)
+  /** The sample never stores anything: its % only changes the "would have saved" view. */
+  const [samplePct, setSamplePct] = useState<IncomePct>(SUGGESTED_PCT)
+  const [whatsNewDismissed, setWhatsNewDismissed] = useState(() => !!store.get<boolean>(WHATS_NEW_KEY))
+  const [incomePromptDismissed, setIncomePromptDismissed] = useState(() => !!store.get<boolean>(INCOME_PROMPT_KEY))
   setThrottledGlobal = setThrottled
 
   const wallet = mode.kind === 'connected' ? mode.accounts.walletAddress : mode.kind === 'sample' ? SAMPLE_WALLETS[sampleIndex] : null
@@ -133,7 +151,15 @@ export function useSpare() {
       setTrace(t)
       setHistoryState('ready')
       updateDiag((d) => {
-        d.trace = { wallet: t.wallet, at: Date.now(), vaults: t.vaultRecords, swaps: t.swaps, cosigners: t.cosigners, stats: t.stats }
+        d.trace = {
+          wallet: t.wallet,
+          at: Date.now(),
+          vaults: t.vaultRecords,
+          swaps: t.swaps,
+          cosigners: t.cosigners,
+          stats: t.stats,
+          incoming: t.incoming.map(({ hash, from, kind, note, valueLuna }) => ({ hash, from, kind, note, valueLuna })),
+        }
         d.rpcTotals = { ...rpc.stats }
       })
     } catch (e) {
@@ -155,6 +181,7 @@ export function useSpare() {
       return
     }
     setStatus(loadSpendStatus(store, network, wallet))
+    setIncomeRuleState(loadIncomeRule(network, wallet))
     setSweeps(loadSweeps(store, network, wallet))
     void loadHistory()
   }, [wallet, network, loadHistory])
@@ -164,8 +191,14 @@ export function useSpare() {
     if (mode.kind === 'sample' && historyState === 'ready' && trace?.spends.length === 0 && sampleIndex < SAMPLE_WALLETS.length - 1) setSampleIndex((i) => i + 1)
   }, [mode.kind, historyState, trace, sampleIndex])
 
-  // ---- prices (need the spend days) ----
-  const dayList = useMemo(() => (trace ? [...new Set(trace.spends.map((s) => dayKey(s.timestamp)))].sort().join(',') : null), [trace])
+  // ---- prices (need the spend days, and the days of payments received) ----
+  const dayList = useMemo(
+    () =>
+      trace
+        ? [...new Set([...trace.spends, ...trace.incoming.filter((i) => i.kind === 'received' || i.kind === 'reward')].map((s) => dayKey(s.timestamp)))].sort().join(',')
+        : null,
+    [trace],
+  )
   const loadPrices = useCallback(async () => {
     if (dayList === null) return
     setPriceError(false)
@@ -277,7 +310,25 @@ export function useSpare() {
     () => (trace && table ? buildRoundUps(trace.spends, table, { maxStep: settings.maxStep, multiplier: settings.multiplier }, { excluded: status.excluded, swept: [...marks.keys(), ...locked] }) : null),
     [trace, table, settings.maxStep, settings.multiplier, status.excluded, marks, locked],
   )
-  const quote = useMemo(() => (items && table ? getSweepQuote(fiat, items, table.current) : null), [items, table])
+  // Pool payouts are only told apart once the validator list is in; until then no slices (never a reward counted by mistake).
+  const incomeReady = validators.length > 0 || validatorsError
+  const sample = mode.kind === 'sample'
+  const ruleSince = sample ? (trace?.sinceMs ?? null) : incomeRule.since
+  const rulePct: IncomePct = sample ? samplePct : incomeRule.pct
+  const rule = useMemo<IncomeRule>(() => (rulePct > 0 && ruleSince !== null ? { pct: rulePct, since: ruleSince } : RULE_OFF), [rulePct, ruleSince])
+  const incoming = useMemo(() => (trace ? withRewards(trace.incoming, validators.map((v) => v.address)) : null), [trace, validators])
+  const incomeItems = useMemo(
+    () =>
+      rule.pct === 0
+        ? []
+        : incoming && table && incomeReady
+          ? buildIncomeItems(incoming, table, rule, { excluded: status.excluded, included: status.included, swept: [...marks.keys(), ...locked] })
+          : null,
+    [incoming, table, incomeReady, rule, status.excluded, status.included, marks, locked],
+  )
+  // The sample's slices are hypothetical ("would have saved"), so they never join its quote.
+  const quoteItems = useMemo(() => (items ? [...items, ...(sample ? [] : (incomeItems ?? []))] : null), [items, incomeItems, sample])
+  const quote = useMemo(() => (quoteItems && table ? getSweepQuote(fiat, quoteItems, table.current) : null), [quoteItems, table])
   const spendable = info && accounts ? spendableLuna(info.balances) : null
   const partial = quote && spendable !== null && table?.current && quote.luna > spendable ? pickAffordable(quote.items, spendable, table.current.price) : null
   const plan = quote ? (partial ?? { items: quote.items, luna: quote.luna, fiat: quote.fiatTotal }) : null
@@ -314,12 +365,30 @@ export function useSpare() {
     })
   }
 
-  function toggleExcluded(hash: string) {
+  /** "Not counted" toggle. Rewards start out not counted, so for them the toggle opts in instead. */
+  function toggleExcluded(hash: string, defaultExcluded = false) {
     if (!wallet) return
-    const excluded = status.excluded.includes(hash) ? status.excluded.filter((h) => h !== hash) : [...status.excluded, hash]
-    const next = { ...status, excluded }
+    const next = toggleCounted(status, hash, defaultExcluded)
     saveSpendStatus(store, network, wallet, next)
     setStatus(next)
+  }
+
+  function setIncomePct(pct: IncomePct) {
+    if (sample) return setSamplePct(pct)
+    if (!wallet) return
+    const next = nextIncomeRule(incomeRule, pct, Date.now())
+    store.set(incomeRuleKey(network, wallet), next)
+    setIncomeRuleState(next)
+  }
+
+  function dismissWhatsNew() {
+    store.set(WHATS_NEW_KEY, true)
+    setWhatsNewDismissed(true)
+  }
+
+  function dismissIncomePrompt() {
+    store.set(INCOME_PROMPT_KEY, true)
+    setIncomePromptDismissed(true)
   }
 
   /** `kind: 'min'` tops a first stake up to 100 NIM. Only ever called from a button press. */
@@ -333,17 +402,21 @@ export function useSpare() {
     if (r.kind === 'new' && !delegation) return
     // A starter sweep tops the round-ups up to 100 NIM; the extra is recorded apart, never as savings.
     const topUpLuna = kind === 'min' && quote ? Math.max(0, luna - quote.luna) : 0
+    const swept = kind === 'min' && quote ? quote.items : plan.items
+    // One tx for both: the part that came from slices is recorded so History can show the split.
+    const { sliceLuna } = splitItemsLuna(luna - topUpLuna, swept)
     setSweepUi({ phase: 'approval' })
     const out = await executeSweep(d, {
       route: r.kind,
       delegation,
       luna,
       topUpLuna,
+      sliceLuna,
       fiat: kind === 'min' && quote ? quote.fiatTotal : plan.fiat,
       fiatCode: fiat,
       price: table.current.price,
       priceTime: table.current.time,
-      itemHashes: (kind === 'min' && quote ? quote.items : plan.items).map((i) => i.hash),
+      itemHashes: swept.map((i) => i.hash),
       stakeBefore: info.staker ? info.staker.active + info.staker.inactive + info.staker.retired : 0,
     })
     setSweeps(loadSweeps(store, network, wallet!))
@@ -377,6 +450,13 @@ export function useSpare() {
     settings,
     setSettings,
     items,
+    incomeItems,
+    incomeRule: rule,
+    setIncomePct,
+    whatsNewDismissed,
+    dismissWhatsNew,
+    incomePromptDismissed,
+    dismissIncomePrompt,
     quote,
     plan,
     partial,

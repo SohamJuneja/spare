@@ -605,3 +605,18 @@ details.diag textarea {
   color: var(--ink-2);
   margin: 2px 0 10px;
 }
+
+/* v1.1 */
+.notice.whats-new {
+  align-items: center;
+  margin: 0 0 12px;
+}
+.notice.whats-new .toggle {
+  flex: none;
+}
+.row .meta.message {
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

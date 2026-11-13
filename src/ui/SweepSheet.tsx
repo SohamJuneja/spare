@@ -1,5 +1,6 @@
 import { fmtFiat, fmtNim } from '../format'
 import { lang, t } from '../i18n'
+import { breakdownText } from './breakdown'
 import { AlertIcon, CheckIcon } from './Icons'
 import { explorerTx, type Spare } from './useSpare'
 
@@ -48,13 +49,7 @@ export function SweepSheet({ s }: { s: Spare }) {
             <h2>{t('sweep.successTitle')}</h2>
             <div className="amount">{fmtNim(ui.record.luna, lang)} NIM</div>
             <p className="muted">{t('sweep.success', { nim: fmtNim(ui.record.luna, lang), fiat: fmtFiat(ui.record.fiat, ui.record.fiatCode, lang) })}</p>
-            {!!ui.record.topUpLuna && (
-              <p className="breakdown">
-                {t('sweep.roundUps', { nim: fmtNim(ui.record.luna - ui.record.topUpLuna, lang) })}
-                <br />
-                {t('sweep.topUp', { nim: fmtNim(ui.record.topUpLuna, lang) })}
-              </p>
-            )}
+            {breakdownText(ui.record) && <p className="breakdown">{breakdownText(ui.record)}</p>}
             {txLink}
           </>
         )}

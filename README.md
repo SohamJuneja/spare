@@ -20,6 +20,16 @@ Most savings apps ask you to remember to save, and most people stop after a few 
 
 You can mark anything as **"Not a purchase"**, and it won't be rounded up.
 
+### New in v1.1: pay yourself first
+
+Turn on **"Keep a slice of what you receive"** (Off / 2% / 5% / 10%; off by default) and every payment that arrives **after** you turn it on adds that share of its value, at that day's price, to your next sweep. Round-ups and slices go into your stake in **one** transaction, and History shows the split: *Round-ups: X · Slices: Y (· Starter top-up: Z)*.
+
+What counts as received (verified on real wallets, see `scripts/trace-income.ts` and `tests/fixtures/income-*.json`):
+
+- **Counted:** transfers from other people and apps, and payments from other Nimiq Pay users. Those arrive from *their* vault, a contract Spare reads once to confirm it is a vault (all-zero hash lock) owned by someone else. On testnet, the faucet counts too.
+- **Left out:** your own transfers and vault renewals, swap refunds and claims, the swap service, and unstaking. **Staking pool payouts** are labelled *reward* and left out by default, since they're already in "Earned on top". You can count one yourself.
+- Each payment received can be marked **"Not counted"**. The sample wallet shows what it *would have saved* at 5% over 30 days.
+
 ## Non-custodial, no backend
 
 - Every sweep is a staking transaction **you approve** in Nimiq Pay. Spare never holds funds or keys.
@@ -44,13 +54,15 @@ Both were sent from the wallet's vault to the staking contract. The wallet's sta
 - **Prices can lag a day.** NIM/USD comes from DefiLlama and other currencies from a daily exchange-rate snapshot. A missing day uses the nearest day and is marked.
 - **Staking rewards vary by pool** and aren't guaranteed. **Unstaking takes about 12–24 hours.**
 - **First stake needs 100 NIM** (network rule). Until then your spare change waits, or "Start my stake now" adds the difference, shown as a separate *starter top-up* and never counted as savings.
+- **A received payment can't be told apart from a friend returning your own money.** Mark it "Not counted" if so.
+- **Pool payouts** are recognised when they come from the validator's own address (the only payout path seen on chain; restake pools pay through the staking contract). A pool that paid from another address would count as received until you mark it.
 - The public RPC allows 20 requests per ~10 s per IP. Spare caches history and stays under that limit; a first load of a busy wallet takes a few seconds.
 
 ## Screens
 
-| Welcome | Home | Activity | Settings | How it works | Saved |
-| --- | --- | --- | --- | --- | --- |
-| ![](screenshots/welcome-light.png) | ![](screenshots/home-sample-light.png) | ![](screenshots/activity-light.png) | ![](screenshots/settings-light.png) | ![](screenshots/how-it-works-light.png) | ![](screenshots/sweep-success-light.png) |
+| Welcome | Home | Activity | Received (v1.1) | Settings | How it works | Saved |
+| --- | --- | --- | --- | --- | --- | --- |
+| ![](screenshots/welcome-light.png) | ![](screenshots/home-sample-light.png) | ![](screenshots/activity-light.png) | ![](screenshots/activity-received-light.png) | ![](screenshots/settings-light.png) | ![](screenshots/how-it-works-light.png) | ![](screenshots/sweep-success-light.png) |
 
 Dark mode versions are in [`screenshots/`](screenshots). The app is in English and Spanish and follows Nimiq Pay's language and currency (USD, EUR, CRC, GMD). Outside Nimiq Pay, "Preview with a sample wallet" shows a real, public, read-only Nimiq Pay wallet labelled "Sample", with saving turned off.
 
@@ -74,6 +86,7 @@ Scripts:
 ```bash
 npx tsx scripts/trace.ts "<NQ wallet>" 30         # vaults found + every outgoing tx with its kind
 npx tsx scripts/quote.ts "<NQ wallet>" CRC        # round-ups and getSweepQuote()
+npx tsx scripts/trace-income.ts "<NQ wallet>" 30 mainnet [fixture]  # incoming txs: received vs left out, and why
 npx tsx scripts/find-sample.ts                     # pick the public sample wallet from recent mainnet activity
 npm run build && npx tsx scripts/screenshots.ts    # 390×844 light/dark screenshots + thumbnail (Playwright)
 npx tsx scripts/capture-fixtures.ts                # re-capture raw RPC fixtures
